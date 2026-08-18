@@ -12,7 +12,7 @@
     
     body { 
       font-family: 'Inter', sans-serif; 
-      background-color: #09090b; /* zinc-950 */
+      background-color: #09090b;
     }
     
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -49,19 +49,14 @@
 </head>
 <body class="text-zinc-100 h-screen w-full overflow-hidden flex flex-col antialiased selection:bg-indigo-500/30">
 
-  <!-- Global Error Toast -->
   <div id="error-box" class="hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-red-500/10 border border-red-500/30 text-red-200 rounded-xl px-6 py-3 text-sm font-medium shadow-2xl backdrop-blur-xl max-w-lg w-full text-center transition-all"></div>
 
-  <!-- Main Content Area -->
   <main class="flex-1 p-4 lg:p-6 overflow-hidden relative">
     <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-600/5 rounded-full blur-3xl pointer-events-none"></div>
 
-    <!-- ================= PC VIEW (Full Width 3 Columns) ================= -->
     <div id="pc-view" class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 relative z-0">
 
-      <!-- Column 1: Branding, Connection & Info (Spans 3/12) -->
       <div class="lg:col-span-3 glass-panel rounded-2xl p-6 flex flex-col h-full">
-        <!-- Branding -->
         <div class="flex items-center gap-3 mb-6 pb-6 border-b border-zinc-800/50">
           <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
             <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
@@ -72,7 +67,6 @@
           </div>
         </div>
 
-        <!-- Connection Status -->
         <div class="mb-6">
           <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Connection</h2>
           <p id="status" class="text-indigo-400 font-medium mb-4 animate-pulse text-sm">Waiting for phone to scan...</p>
@@ -88,7 +82,6 @@
           </div>
         </div>
 
-        <!-- Troubleshooting -->
         <div class="mt-auto pt-6 border-t border-zinc-800/50">
           <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
             <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
@@ -108,7 +101,6 @@
         </div>
       </div>
 
-      <!-- Column 2: Send Files (Spans 4/12) -->
       <div class="lg:col-span-4 glass-panel rounded-2xl p-6 flex flex-col h-full">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
@@ -131,7 +123,6 @@
         </label>
       </div>
 
-      <!-- Column 3: Transfer History (Spans 5/12) -->
       <div class="lg:col-span-5 glass-panel rounded-2xl p-6 flex flex-col h-full">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
@@ -142,21 +133,17 @@
         </div>
 
         <div id="history-list" class="flex-1 overflow-y-auto space-y-2 pr-2">
-          <!-- Empty State -->
           <div id="history-empty" class="h-full flex flex-col items-center justify-center text-zinc-600">
             <svg class="w-12 h-12 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
             <p class="text-sm font-medium">No files transferred yet</p>
             <p class="text-xs mt-1">Sent and received files will appear here</p>
           </div>
-          <!-- Dynamic items will be injected here -->
         </div>
       </div>
     </div>
 
-    <!-- ================= MOBILE VIEW ================= -->
     <div id="mobile-view" class="hidden w-full h-full flex flex-col gap-4 overflow-y-auto pb-6 relative z-0">
       
-      <!-- Mobile Branding & Status -->
       <div class="glass-panel rounded-2xl p-5 text-center shrink-0">
         <div class="flex items-center justify-center gap-3 mb-3">
           <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
@@ -167,7 +154,6 @@
         <p id="connection-status" class="text-indigo-400 font-medium text-sm animate-pulse">Establishing direct link...</p>
       </div>
 
-      <!-- Mobile Send -->
       <div class="glass-panel rounded-2xl p-5 shrink-0">
         <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Send Files</h3>
         <label class="flex flex-col items-center justify-center border-2 border-dashed border-zinc-700 hover:border-indigo-500/50 hover:bg-indigo-500/5 rounded-xl cursor-pointer transition-all group min-h-[120px]">
@@ -177,7 +163,6 @@
         </label>
       </div>
 
-      <!-- Mobile History -->
       <div class="glass-panel rounded-2xl p-5 flex-1 flex flex-col min-h-0">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Transfer History</h3>
@@ -198,7 +183,6 @@
       const SIGNALING_URL = "https://p2p-rmpb.onrender.com";
       const socket = io(SIGNALING_URL, { transports: ["websocket", "polling"] });
 
-      // DOM Elements
       const pcView = document.getElementById("pc-view");
       const mobileView = document.getElementById("mobile-view");
       const errorBox = document.getElementById("error-box");
@@ -213,7 +197,6 @@
       const historyEmptyPC = document.getElementById("history-empty");
       const historyEmptyMobile = document.getElementById("history-empty-mobile");
 
-      // State
       let peerConnection = null;
       let dataChannel = null;
       let pendingCandidates = [];
@@ -221,9 +204,8 @@
       let initiatorStarted = false;
       let connectErrorCount = 0;
 
-      // Transfer State
-      let transferHistory = []; // { id, name, size, type, direction, status, progress, timestamp, objectUrl }
-      let activeReceives = new Map(); // id -> { buffer: [], receivedSize: 0, meta: {} }
+      let transferHistory = [];
+      let activeReceives = new Map();
       let sendQueue = [];
       let isSending = false;
 
@@ -234,7 +216,6 @@
 
       const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
-      // --- Helpers ---
       function formatBytes(bytes, decimals = 1) {
         if (bytes === 0) return '0 B';
         const k = 1024;
@@ -278,18 +259,15 @@
         }
       }
 
-      // --- History Rendering ---
       function renderHistory() {
         const isEmpty = transferHistory.length === 0;
         historyEmptyPC.classList.toggle("hidden", !isEmpty);
         historyEmptyMobile.classList.toggle("hidden", !isEmpty);
 
-        // We only render the active items + last 20 completed to keep DOM light
         const itemsToRender = transferHistory.slice(-20).reverse();
 
         const generateHTML = (item) => {
           const isReceived = item.direction === 'received';
-          const statusColor = item.status === 'completed' ? 'text-emerald-400' : item.status === 'error' ? 'text-red-400' : 'text-indigo-400';
           const statusIcon = item.status === 'completed' 
             ? '<svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>'
             : item.status === 'error'
@@ -339,7 +317,6 @@
         renderHistory();
       };
 
-      // --- WebRTC Logic ---
       function readFileChunk(blob) {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -357,66 +334,20 @@
       }
 
       async function processSendQueue() {
-        if (isSending || sendQueue.length === 0 || !dataChannel || dataChannel.readyState !== "open") return;
+        if (isSending || sendQueue.length === 0) return;
+        if (!dataChannel || dataChannel.readyState !== "open") return;
         
         isSending = true;
         const file = sendQueue.shift();
-        const transferId = crypto.randomUUID();
-
-        // Add to history
-        transferHistory.push({
-          id: transferId,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          direction: 'sent',
-          status: 'transferring',
-          progress: 0,
-          timestamp: new Date(),
-          objectUrl: null
-        });
-        renderHistory();
-
+        
         try {
-          dataChannel.send(JSON.stringify({ type: "meta", id: transferId, name: file.name, size: file.size, fileType: file.type }));
-
-          if (file.size > 0) {
-            const chunkSize = 16384;
-            let offset = 0;
-            while (offset < file.size) {
-              await waitUntilBufferLow(dataChannel, 1024 * 1024);
-              const chunk = await readFileChunk(file.slice(offset, offset + chunkSize));
-              dataChannel.send(JSON.stringify({ type: "chunk", id: transferId }) + "||BINARY||"); // Marker for binary, but we actually send ArrayBuffer directly below
-              
-              // Actually, we need to send the ArrayBuffer. The signaling above was just conceptual.
-              // Correct approach: Send meta, then send ArrayBuffer chunks, then send end.
-              // To associate chunks with ID, we can't easily mix string and binary in a way that identifies ID unless we use a structured clone or prepend ID to binary (hard).
-              // Alternative: Since we process sequentially, the receiver knows the current active receive ID.
-              // Let's use a simpler approach: The receiver tracks the *current* active transfer.
-            }
-          }
-          
-          // Revised Sequential Sending without ID in binary:
-          // We will just rely on the fact that we send one file at a time.
-          // But to be robust, let's use a global `currentSendId` on the receiver side.
-          
-          // Let's rewrite the send loop to be clean:
-          // 1. Send meta (string)
-          // 2. Send chunks (ArrayBuffer)
-          // 3. Send end (string)
-          // The receiver sets `currentReceiveId` when meta arrives, and clears it on end.
-          
-        } catch (err) {
-          console.error("Send error:", err);
-          const histItem = transferHistory.find(h => h.id === transferId);
-          if (histItem) { histItem.status = 'error'; renderHistory(); }
+          await sendFile(file);
         } finally {
           isSending = false;
-          processSendQueue(); // Process next
+          processSendQueue();
         }
       }
 
-      // Better Send Implementation
       async function sendFile(file) {
         const transferId = crypto.randomUUID();
         transferHistory.push({
@@ -426,18 +357,13 @@
         renderHistory();
 
         try {
-          // We send a string message that the receiver understands as "start new transfer with this ID"
-          // But wait, dataChannel.send() can take string or ArrayBuffer.
-          // We can send a JSON string for meta and end. For chunks, we send ArrayBuffer.
-          // The receiver will know that any ArrayBuffer belongs to the currently active `meta.id`.
-          
           dataChannel.send(JSON.stringify({ type: "meta", id: transferId, name: file.name, size: file.size, fileType: file.type }));
 
           if (file.size > 0) {
-            const chunkSize = 32768; // 32KB chunks
+            const chunkSize = 32768;
             let offset = 0;
             while (offset < file.size) {
-              await waitUntilBufferLow(dataChannel, 2 * 1024 * 1024); // 2MB limit
+              await waitUntilBufferLow(dataChannel, 2 * 1024 * 1024);
               const chunk = await readFileChunk(file.slice(offset, offset + chunkSize));
               dataChannel.send(chunk);
               offset += chunk.byteLength;
@@ -486,10 +412,6 @@
             completeReceive(msg.id);
           }
         } else {
-          // ArrayBuffer chunk
-          // Find the active receive (there should only be one at a time if sender is sequential)
-          // If multiple concurrent sends are supported, we'd need to embed ID in binary, which is complex.
-          // For now, we assume sequential sending, so we can just iterate the map or take the first one.
           const activeId = Array.from(activeReceives.keys())[0];
           if (!activeId) return;
 
@@ -500,8 +422,8 @@
           receiveData.receivedSize += event.data.byteLength;
 
           const histItem = transferHistory.find(h => h.id === activeId);
-          if (histItem && histItem.meta.size > 0) {
-            histItem.progress = Math.round((receiveData.receivedSize / histItem.meta.size) * 100);
+          if (histItem && receiveData.meta.size > 0) {
+            histItem.progress = Math.round((receiveData.receivedSize / receiveData.meta.size) * 100);
             renderHistory();
           }
 
@@ -533,7 +455,7 @@
 
         channel.onopen = () => {
           setConnectionStatus("Connected Directly via P2P!", "good");
-          processSendQueue(); // Start sending if anything is queued
+          processSendQueue();
         };
         channel.onclose = () => setConnectionStatus("Data channel closed.", "bad");
         channel.onerror = (err) => {
@@ -640,7 +562,6 @@
       if (socket.connected) joinAndMaybeStart();
       if (!window.RTCPeerConnection) showError("WebRTC is not available in this browser.");
 
-      // View Routing
       if (!isInitiator) {
         pcView.classList.remove("hidden");
         makeQr(currentRoom);
@@ -649,7 +570,6 @@
         setConnectionStatus("Connecting to PC...", "warn");
       }
 
-      // --- File Handling ---
       async function handleFileSelect(event) {
         const files = event.target.files;
         if (!files || files.length === 0) return;
@@ -663,14 +583,13 @@
         for (let i = 0; i < files.length; i++) {
           sendQueue.push(files[i]);
         }
-        event.target.value = ""; // Reset input
+        event.target.value = "";
         processSendQueue();
       }
 
       if (fileInputPC) fileInputPC.addEventListener("change", handleFileSelect);
       if (fileInputMobile) fileInputMobile.addEventListener("change", handleFileSelect);
 
-      // Drag and Drop
       if (dropZone && fileInputPC) {
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drop-zone-active'); });
         dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('drop-zone-active'); });
