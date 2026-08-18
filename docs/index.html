@@ -2,154 +2,75 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>P2P File Share</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    body { font-family: 'Inter', sans-serif; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
-    
-    /* Smooth fade in for layout switching */
-    .fade-in { animation: fadeIn 0.4s ease-out forwards; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center min-h-screen p-4 antialiased selection:bg-indigo-500/30">
+<body class="bg-slate-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
+  <div class="max-w-md w-full bg-slate-800 p-6 rounded-2xl shadow-xl text-center">
+    <h1 class="text-2xl font-bold mb-4">P2P File Share</h1>
 
-  <!-- Subtle background glow -->
-  <div class="fixed inset-0 pointer-events-none overflow-hidden">
-    <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[120px]"></div>
-    <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-cyan-600/10 rounded-full blur-[120px]"></div>
-  </div>
+    <div id="error-box" class="hidden bg-red-900/40 border border-red-500 text-red-200 rounded-xl p-3 mb-4 text-sm break-words"></div>
 
-  <div class="relative w-full max-w-md fade-in">
-    
-    <!-- Header -->
-    <div class="text-center mb-8">
-      <h1 class="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">P2P Share</h1>
-      <p class="text-zinc-500 text-sm mt-2">Secure, direct, and serverless file transfer</p>
-    </div>
-
-    <!-- Error Box -->
-    <div id="error-box" class="hidden bg-red-500/10 border border-red-500/20 text-red-300 rounded-2xl p-4 mb-6 text-sm backdrop-blur-sm flex items-start gap-3 text-left shadow-lg shadow-red-900/10">
-      <svg class="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-      <span id="error-text" class="leading-relaxed"></span>
-    </div>
-
-    <!-- ========================================== -->
-    <!-- PC LAYOUT: QR & Status Dashboard           -->
-    <!-- ========================================== -->
+    <!-- PC View -->
     <div id="pc-view" class="hidden flex flex-col items-center">
-      <div class="bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-3xl p-8 w-full shadow-2xl ring-1 ring-white/5">
-        
-        <div class="flex flex-col items-center mb-6">
-          <div class="bg-white p-4 rounded-2xl shadow-xl shadow-indigo-500/10 mb-4">
-            <div id="qrcode"></div>
-          </div>
-          <p class="text-zinc-400 text-sm font-medium">Scan with your phone camera</p>
-        </div>
-
-        <div class="bg-zinc-950/50 rounded-xl p-3 flex items-center justify-between gap-3 border border-zinc-800/50 mb-6">
-          <code id="room-url" class="text-xs font-mono text-zinc-400 truncate flex-1 text-left"></code>
-          <button onclick="copyRoomUrl()" class="shrink-0 p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors" title="Copy URL">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-          </button>
-        </div>
-
-        <div class="flex items-center justify-center gap-2 text-indigo-400 font-medium text-sm bg-indigo-500/10 py-3 rounded-xl border border-indigo-500/20">
-          <span class="relative flex h-2.5 w-2.5">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
-          </span>
-          <span id="status">Waiting for phone to scan...</span>
-        </div>
-
-      </div>
+      <p class="text-slate-400 mb-2">Scan this QR code with your phone camera:</p>
+      <div id="qrcode" class="bg-white p-4 rounded-xl inline-block mb-3"></div>
+      <p id="room-url" class="text-xs break-all text-slate-500 mb-3"></p>
+      <p id="status" class="text-yellow-400 font-medium">Waiting for phone to scan...</p>
     </div>
 
-    <!-- ========================================== -->
-    <!-- MOBILE LAYOUT: List View with All Elements -->
-    <!-- ========================================== -->
-    <div id="transfer-view" class="hidden flex flex-col gap-4 w-full">
-      
-      <!-- List Item 1: Connection Status -->
-      <div class="bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
-        <div id="status-icon" class="shrink-0 w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-        </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold text-zinc-200">Connection Status</p>
-          <p id="connection-status" class="text-xs text-amber-400 truncate">Establishing direct link...</p>
-        </div>
+    <!-- Transfer View -->
+    <div id="transfer-view" class="hidden flex flex-col items-center">
+      <p id="connection-status" class="text-yellow-400 font-medium mb-4">Establishing direct link...</p>
+
+      <input
+        type="file"
+        id="file-input"
+        class="mb-4 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
+      />
+
+      <div id="progress-container" class="w-full bg-slate-700 rounded-full h-4 mb-4 hidden">
+        <div id="progress-bar" class="bg-violet-500 h-4 rounded-full transition-all" style="width: 0%"></div>
       </div>
 
-      <!-- List Item 2: File Selection -->
-      <label class="bg-zinc-900/80 backdrop-blur-xl border border-dashed border-zinc-700 hover:border-indigo-500/50 hover:bg-zinc-800/50 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all duration-300 group shadow-lg">
-        <div class="w-12 h-12 rounded-full bg-zinc-800 group-hover:bg-indigo-600/20 flex items-center justify-center text-zinc-400 group-hover:text-indigo-400 transition-colors">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-        </div>
-        <div class="text-center">
-          <p class="text-sm font-semibold text-zinc-200 group-hover:text-indigo-300 transition-colors">Tap to select a file</p>
-          <p class="text-xs text-zinc-500 mt-1">Any file type, sent directly</p>
-        </div>
-        <input type="file" id="file-input" class="hidden" />
-      </label>
-
-      <!-- List Item 3: Progress -->
-      <div id="progress-container" class="hidden bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-2xl p-4 shadow-lg">
-        <div class="flex justify-between items-center mb-2">
-          <span class="text-xs font-medium text-zinc-400">Transferring...</span>
-          <span id="progress-text" class="text-xs font-bold text-indigo-400 font-mono">0%</span>
-        </div>
-        <div class="w-full bg-zinc-800 rounded-full h-2.5 overflow-hidden">
-          <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-cyan-500 h-2.5 rounded-full transition-all duration-300 ease-out shadow-[0_0_12px_rgba(99,102,241,0.4)]" style="width: 0%"></div>
-        </div>
-      </div>
-
-      <!-- List Item 4: Download -->
-      <a id="download-link" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl p-4 flex items-center justify-center gap-3 font-semibold transition-all duration-300 shadow-lg shadow-emerald-900/20 active:scale-[0.98]">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-        <span id="download-text">Download File</span>
+      <a
+        id="download-link"
+        class="hidden bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-xl mt-2 block cursor-pointer"
+      >
+        Download Received File
       </a>
-
     </div>
 
-    <!-- Footer -->
-    <div class="mt-8 pt-6 border-t border-zinc-800/50 w-full text-center">
-      <p class="text-[11px] text-zinc-600 mb-2 uppercase tracking-wider font-semibold">Windows Firewall Tools</p>
-      <div class="flex items-center justify-center gap-4 text-xs">
-        <a id="allow-firewall-link" class="text-zinc-500 hover:text-indigo-400 transition-colors underline decoration-zinc-800 underline-offset-4" href="allow-firewall.bat" download>Allow Rules</a>
-        <span class="text-zinc-800">•</span>
-        <a id="remove-firewall-link" class="text-zinc-500 hover:text-indigo-400 transition-colors underline decoration-zinc-800 underline-offset-4" href="remove-firewall.bat" download>Remove Rules</a>
-      </div>
+    <div class="mt-4 text-xs text-slate-500">
+      Windows firewall fix:
+      <a id="allow-firewall-link" class="underline" href="allow-firewall.bat" download>allow-firewall.bat</a>
+      /
+      <a id="remove-firewall-link" class="underline" href="remove-firewall.bat" download>remove-firewall.bat</a>
     </div>
-
   </div>
 
   <script>
     (() => {
       const SIGNALING_URL = "https://p2p-rmpb.onrender.com";
-      const socket = io(SIGNALING_URL, { transports: ["websocket", "polling"] });
+
+      const socket = io(SIGNALING_URL, {
+        transports: ["websocket", "polling"]
+      });
 
       const pcView = document.getElementById("pc-view");
       const transferView = document.getElementById("transfer-view");
       const statusText = document.getElementById("status");
       const roomUrlText = document.getElementById("room-url");
       const connectionStatus = document.getElementById("connection-status");
-      const statusIcon = document.getElementById("status-icon");
       const fileInput = document.getElementById("file-input");
       const progressBar = document.getElementById("progress-bar");
-      const progressText = document.getElementById("progress-text");
       const progressContainer = document.getElementById("progress-container");
       const downloadLink = document.getElementById("download-link");
-      const downloadText = document.getElementById("download-text");
       const errorBox = document.getElementById("error-box");
-      const errorText = document.getElementById("error-text");
 
       let peerConnection = null;
       let dataChannel = null;
@@ -170,22 +91,15 @@
       const isInitiator = Boolean(urlRoom);
       const currentRoom = urlRoom || Math.random().toString(36).substring(2, 9);
 
-      const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-
-      // Expose copy function to window for the onclick handler
-      window.copyRoomUrl = () => {
-        const url = roomUrlText.textContent;
-        navigator.clipboard.writeText(url).then(() => {
-          const btn = document.querySelector('button[onclick="copyRoomUrl()"]');
-          const originalHTML = btn.innerHTML;
-          btn.innerHTML = `<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
-          setTimeout(() => { btn.innerHTML = originalHTML; }, 2000);
-        });
+      const rtcConfig = {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" }
+        ]
       };
 
       function showError(message) {
         if (!errorBox) return;
-        errorText.textContent = message;
+        errorBox.textContent = message;
         errorBox.classList.remove("hidden");
       }
 
@@ -194,83 +108,102 @@
       }
 
       function setConnectionStatus(text, state) {
-        if (!connectionStatus || !statusIcon) return;
+        if (!connectionStatus) return;
 
-        const states = {
-          good: { color: "text-emerald-400", bg: "bg-emerald-500/10", icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>` },
-          bad: { color: "text-red-400", bg: "bg-red-500/10", icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>` },
-          warn: { color: "text-amber-400", bg: "bg-amber-500/10", icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>` }
-        };
-
-        const style = states[state] || states.warn;
-        connectionStatus.className = `text-xs ${style.color} truncate`;
         connectionStatus.textContent = text;
-        statusIcon.className = `shrink-0 w-10 h-10 rounded-full ${style.bg} flex items-center justify-center ${style.color}`;
-        statusIcon.innerHTML = style.icon;
+        connectionStatus.className = "font-medium mb-4";
+
+        connectionStatus.style.color =
+          state === "good" ? "#4ade80" :
+          state === "bad" ? "#f87171" :
+          "#facc15";
       }
 
       function setProgress(percent) {
         progressContainer.classList.remove("hidden");
-        const safePercent = Math.min(100, Math.max(0, percent));
-        progressBar.style.width = `${safePercent}%`;
-        progressText.textContent = `${Math.round(safePercent)}%`;
+        progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
       }
 
       function showConnected() {
-        setConnectionStatus("Connected Directly via P2P", "good");
+        setConnectionStatus("Connected Directly via P2P!", "good");
+
         if (statusText) {
-          statusText.textContent = "Connected! Ready to transfer.";
-          statusText.parentElement.className = "flex items-center justify-center gap-2 text-emerald-400 font-medium text-sm bg-emerald-500/10 py-3 rounded-xl border border-emerald-500/20";
-          statusText.previousElementSibling.innerHTML = `<span class="relative flex h-2.5 w-2.5"><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span></span>`;
+          statusText.textContent = "Connected!";
         }
+
+        pcView.classList.add("hidden");
+        transferView.classList.remove("hidden");
       }
 
       function readFileChunk(blob) {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
+
           reader.onload = () => resolve(reader.result);
           reader.onerror = () => reject(reader.error);
+
           reader.readAsArrayBuffer(blob);
         });
       }
 
       async function waitUntilBufferLow(channel, limit) {
         while (channel.bufferedAmount > limit) {
-          if (channel.readyState !== "open") throw new Error("Data channel closed");
+          if (channel.readyState !== "open") {
+            throw new Error("Data channel closed");
+          }
+
           await new Promise((resolve) => setTimeout(resolve, 50));
         }
       }
 
       function completeReceive() {
         if (!incomingFileMeta || receiveCompleted) return;
+
         receiveCompleted = true;
 
-        const blob = new Blob(incomingBuffer, { type: incomingFileMeta.fileType || "application/octet-stream" });
+        const blob = new Blob(incomingBuffer, {
+          type: incomingFileMeta.fileType || "application/octet-stream"
+        });
+
         currentObjectUrl = URL.createObjectURL(blob);
 
         downloadLink.href = currentObjectUrl;
         downloadLink.download = incomingFileMeta.name || "received-file";
-        downloadText.textContent = `Download ${incomingFileMeta.name || "received-file"}`;
+        downloadLink.textContent = `Download ${incomingFileMeta.name || "received-file"}`;
         downloadLink.classList.remove("hidden");
 
         setProgress(100);
+
         incomingBuffer = [];
       }
 
       async function handleDataMessage(event) {
         if (typeof event.data === "string") {
           let msg;
-          try { msg = JSON.parse(event.data); } catch (err) { return; }
+
+          try {
+            msg = JSON.parse(event.data);
+          } catch (err) {
+            return;
+          }
 
           if (msg.type === "meta") {
-            if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; }
+            if (currentObjectUrl) {
+              URL.revokeObjectURL(currentObjectUrl);
+              currentObjectUrl = null;
+            }
+
             incomingFileMeta = msg;
             incomingBuffer = [];
             receivedSize = 0;
             receiveCompleted = false;
+
             downloadLink.classList.add("hidden");
             setProgress(0);
-            if (msg.size === 0) completeReceive();
+
+            if (msg.size === 0) {
+              completeReceive();
+            }
           } else if (msg.type === "end") {
             if (incomingFileMeta && !receiveCompleted && receivedSize >= incomingFileMeta.size) {
               completeReceive();
@@ -278,13 +211,16 @@
           }
         } else {
           if (!incomingFileMeta || receiveCompleted) return;
+
           const chunk = event.data;
+
           incomingBuffer.push(chunk);
           receivedSize += chunk.byteLength;
 
           if (incomingFileMeta.size > 0) {
             setProgress((receivedSize / incomingFileMeta.size) * 100);
           }
+
           if (receivedSize >= incomingFileMeta.size) {
             completeReceive();
           }
@@ -295,22 +231,36 @@
         channel.binaryType = "arraybuffer";
         channel.bufferedAmountLowThreshold = 256 * 1024;
 
-        channel.onopen = () => showConnected();
-        channel.onclose = () => setConnectionStatus("Data channel closed.", "bad");
+        channel.onopen = () => {
+          showConnected();
+        };
+
+        channel.onclose = () => {
+          setConnectionStatus("Data channel closed.", "bad");
+        };
+
         channel.onerror = (err) => {
           console.error("Data channel error:", err);
           showError("Data channel error. Reload and reconnect.");
         };
+
         channel.onmessage = handleDataMessage;
       }
 
       async function flushPendingCandidates() {
-        if (!peerConnection || !peerConnection.remoteDescription || pendingCandidates.length === 0) return;
+        if (!peerConnection || !peerConnection.remoteDescription || pendingCandidates.length === 0) {
+          return;
+        }
+
         const candidates = pendingCandidates;
         pendingCandidates = [];
+
         for (const candidate of candidates) {
-          try { await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); } 
-          catch (err) { console.warn("Ignoring bad ICE candidate:", err); }
+          try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (err) {
+            console.warn("Ignoring bad ICE candidate:", err);
+          }
         }
       }
 
@@ -319,7 +269,12 @@
 
         pc.onicecandidate = (event) => {
           if (event.candidate) {
-            socket.emit("signal", { room: roomId, signal: { candidate: event.candidate.toJSON() } });
+            socket.emit("signal", {
+              room: roomId,
+              signal: {
+                candidate: event.candidate.toJSON()
+              }
+            });
           }
         };
 
@@ -329,13 +284,19 @@
         };
 
         pc.onconnectionstatechange = () => {
-          if (pc.connectionState === "connected") showConnected();
-          else if (pc.connectionState === "failed") setConnectionStatus("Peer connection failed. Reload.", "bad");
-          else if (pc.connectionState === "disconnected") setConnectionStatus("Peer connection disconnected.", "bad");
+          if (pc.connectionState === "connected") {
+            showConnected();
+          } else if (pc.connectionState === "failed") {
+            setConnectionStatus("Peer connection failed. Reload and scan again.", "bad");
+          } else if (pc.connectionState === "disconnected") {
+            setConnectionStatus("Peer connection disconnected.", "bad");
+          }
         };
 
         pc.oniceconnectionstatechange = () => {
-          if (pc.iceConnectionState === "failed" && pc.restartIce) pc.restartIce();
+          if (pc.iceConnectionState === "failed" && pc.restartIce) {
+            pc.restartIce();
+          }
         };
 
         return pc;
@@ -343,20 +304,37 @@
 
       async function handleSignal(signal) {
         if (!signal || !window.RTCPeerConnection) return;
-        if (!peerConnection && !isInitiator) peerConnection = createPeerConnection(currentRoom);
+
+        if (!peerConnection && !isInitiator) {
+          peerConnection = createPeerConnection(currentRoom);
+        }
+
         if (!peerConnection) return;
 
         if (signal.sdp) {
           const sdp = signal.sdp;
+
           if (sdp.type === "offer") {
             if (peerConnection.signalingState !== "stable") return;
+
             await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
             await flushPendingCandidates();
+
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
-            socket.emit("signal", { room: currentRoom, signal: { sdp: { type: peerConnection.localDescription.type, sdp: peerConnection.localDescription.sdp } } });
+
+            socket.emit("signal", {
+              room: currentRoom,
+              signal: {
+                sdp: {
+                  type: peerConnection.localDescription.type,
+                  sdp: peerConnection.localDescription.sdp
+                }
+              }
+            });
           } else if (sdp.type === "answer") {
             if (peerConnection.signalingState !== "have-local-offer") return;
+
             await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
             await flushPendingCandidates();
           }
@@ -371,15 +349,27 @@
 
       function startInitiator() {
         if (initiatorStarted || !window.RTCPeerConnection) return;
+
         initiatorStarted = true;
+
         peerConnection = createPeerConnection(currentRoom);
+
         dataChannel = peerConnection.createDataChannel("file-transfer");
         setupDataChannel(dataChannel);
 
-        peerConnection.createOffer()
+        peerConnection
+          .createOffer()
           .then((offer) => peerConnection.setLocalDescription(offer))
           .then(() => {
-            socket.emit("signal", { room: currentRoom, signal: { sdp: { type: peerConnection.localDescription.type, sdp: peerConnection.localDescription.sdp } } });
+            socket.emit("signal", {
+              room: currentRoom,
+              signal: {
+                sdp: {
+                  type: peerConnection.localDescription.type,
+                  sdp: peerConnection.localDescription.sdp
+                }
+              }
+            });
           })
           .catch((err) => {
             console.error("Mobile offer error:", err);
@@ -390,16 +380,28 @@
       function makeQr(roomId) {
         const qrEl = document.getElementById("qrcode");
         qrEl.innerHTML = "";
+
         const u = new URL(window.location.href);
-        if (u.pathname && !u.pathname.includes(".") && !u.pathname.endsWith("/")) u.pathname += "/";
+
+        if (u.pathname && !u.pathname.includes(".") && !u.pathname.endsWith("/")) {
+          u.pathname += "/";
+        }
+
         u.search = `?room=${roomId}`;
         u.hash = "";
+
         const url = u.toString();
 
-        if (roomUrlText) roomUrlText.textContent = url;
+        if (roomUrlText) {
+          roomUrlText.textContent = url;
+        }
 
         if (typeof QRCode !== "undefined") {
-          new QRCode(qrEl, { text: url, width: 180, height: 180, colorDark: "#18181b", colorLight: "#ffffff" });
+          new QRCode(qrEl, {
+            text: url,
+            width: 200,
+            height: 200
+          });
         } else {
           qrEl.textContent = url;
         }
@@ -407,27 +409,41 @@
 
       function joinAndMaybeStart() {
         connectErrorCount = 0;
+
         socket.emit("join-room", currentRoom);
-        if (isInitiator) startInitiator();
+
+        if (isInitiator) {
+          startInitiator();
+        }
       }
 
       socket.on("signal", (signal) => {
-        signalQueue = signalQueue.then(() => handleSignal(signal)).catch((err) => {
-          console.error("Signaling error:", err);
-          showError("Signaling error. Reload and reconnect.");
-        });
+        signalQueue = signalQueue
+          .then(() => handleSignal(signal))
+          .catch((err) => {
+            console.error("Signaling error:", err);
+            showError("Signaling error. Reload and reconnect.");
+          });
       });
 
       socket.on("connect", joinAndMaybeStart);
+
       socket.on("connect_error", (err) => {
         connectErrorCount += 1;
-        if (connectErrorCount >= 3) showError(`Signaling connection failed: ${err.message}`);
+
+        if (connectErrorCount >= 3) {
+          showError(`Signaling connection failed: ${err.message}`);
+        }
       });
 
-      if (socket.connected) joinAndMaybeStart();
-      if (!window.RTCPeerConnection) showError("WebRTC is not available in this browser.");
+      if (socket.connected) {
+        joinAndMaybeStart();
+      }
 
-      // Route to correct layout
+      if (!window.RTCPeerConnection) {
+        showError("WebRTC is not available in this browser.");
+      }
+
       if (!isInitiator) {
         pcView.classList.remove("hidden");
         makeQr(currentRoom);
@@ -438,6 +454,7 @@
 
       fileInput.addEventListener("change", async () => {
         const file = fileInput.files && fileInput.files[0];
+
         if (!file) return;
 
         if (!dataChannel || dataChannel.readyState !== "open") {
@@ -452,20 +469,32 @@
         downloadLink.classList.add("hidden");
 
         try {
-          dataChannel.send(JSON.stringify({ type: "meta", name: file.name, size: file.size, fileType: file.type }));
+          dataChannel.send(JSON.stringify({
+            type: "meta",
+            name: file.name,
+            size: file.size,
+            fileType: file.type
+          }));
 
           if (file.size > 0) {
             const chunkSize = 16384;
             let offset = 0;
+
             while (offset < file.size) {
               await waitUntilBufferLow(dataChannel, 1024 * 1024);
+
               const chunk = await readFileChunk(file.slice(offset, offset + chunkSize));
+
               dataChannel.send(chunk);
+
               offset += chunk.byteLength;
+
               setProgress((offset / file.size) * 100);
             }
           }
+
           dataChannel.send(JSON.stringify({ type: "end" }));
+
           setProgress(100);
         } catch (err) {
           console.error("Send file error:", err);
