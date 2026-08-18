@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P2P File Share</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body class="bg-slate-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
+  <div class="max-w-md w-full bg-slate-800 p-6 rounded-2xl shadow-xl text-center">
+    <h1 class="text-2xl font-bold mb-4">P2P File Share</h1>
+
+    <div id="error-box" class="hidden bg-red-900/40 border border-red-500 text-red-200 rounded-xl p-3 mb-4 text-sm break-words"></div>
+
+    <!-- PC View -->
+    <div id="pc-view" class="hidden flex flex-col items-center">
+      <p class="text-slate-400 mb-2">Scan this QR code with your phone camera:</p>
+      <div id="qrcode" class="bg-white p-4 rounded-xl inline-block mb-3"></div>
+      <p id="room-url" class="text-xs break-all text-slate-500 mb-3"></p>
+      <p id="status" class="text-yellow-400 font-medium">Waiting for phone to scan...</p>
+    </div>
+
+    <!-- Transfer View -->
+    <div id="transfer-view" class="hidden flex flex-col items-center">
+      <p id="connection-status" class="text-yellow-400 font-medium mb-4">Establishing direct link...</p>
+
+      <input
+        type="file"
+        id="file-input"
+        class="mb-4 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
+      />
+
+      <div id="progress-container" class="w-full bg-slate-700 rounded-full h-4 mb-4 hidden">
+        <div id="progress-bar" class="bg-violet-500 h-4 rounded-full transition-all" style="width: 0%"></div>
+      </div>
+
+      <a
+        id="download-link"
+        class="hidden bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-xl mt-2 block cursor-pointer"
+      >
+        Download Received File
+      </a>
+    </div>
+
+    <div class="mt-4 text-xs text-slate-500">
+      Windows firewall fix:
+      <a id="allow-firewall-link" class="underline" href="allow-firewall.bat" download>allow-firewall.bat</a>
+      /
+      <a id="remove-firewall-link" class="underline" href="remove-firewall.bat" download>remove-firewall.bat</a>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const SIGNALING_URL = "https://p2p-rmpb.onrender.com";
+
+      const socket = io(SIGNALING_URL, {
+        transports: ["websocket", "polling"]
+      });
+
+      const pcView = document.getElementById("pc-view");
+      const transferView = document.getElementById("transfer-view");
+      const statusText = document.getElementById("status");
+      const roomUrlText = document.getElementById("room-url");
+      const connectionStatus = document.getElementById("connection-status");
+      const fileInput = document.getElementById("file-input");
+      const progressBar = document.getElementById("progress-bar");
+      const progressContainer = document.getElementById("progress-container");
+      const downloadLink = document.getElementById("download-link");
+      const errorBox = document.getElementById("error-box");
+
+      let peerConnection = null;
+      let dataChannel = null;
+      let pendingCandidates = [];
+      let signalQueue = Promise.resolve();
+
+      let incomingFileMeta = null;
+      let incomingBuffer = [];
+      let receivedSize = 0;
+      let receiveCompleted = false;
+      let currentObjectUrl = null;
+
+      let initiatorStarted = false;
+      let connectErrorCount = 0;
+
+      const params = new URLSearchParams(window.location.search);
+      const urlRoom = (params.get("room") || "").trim();
+      const isInitiator = Boolean(urlRoom);
+      const currentRoom = urlRoom || Math.random().toString(36).substring(2, 9);
+
+      const rtcConfig = {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" }
+        ]
+      };
+
+      function showError(message) {
+        if (!errorBox) return;
+        errorBox.textContent = message;
+        errorBox.classList.remove("hidden");
+      }
+
+      if (SIGNALING_URL.includes("YOUR-RENDER-APP")) {
+        showError("Replace SIGNALING_URL in docs/index.html with your Render URL.");
+      }
+
+      function setConnectionStatus(text, state) {
+        if (!connectionStatus) return;
+
+        connectionStatus.textContent = text;
+        connectionStatus.className = "font-medium mb-4";
+
+        connectionStatus.style.color =
+          state === "good" ? "#4ade80" :
+          state === "bad" ? "#f87171" :
+          "#facc15";
+      }
+
+      function setProgress(percent) {
+        progressContainer.classList.remove("hidden");
+        progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+      }
+
+      function showConnected() {
+        setConnectionStatus("Connected Directly via P2P!", "good");
+
+        if (statusText) {
+          statusText.textContent = "Connected!";
+        }
+
+        pcView.classList.add("hidden");
+        transferView.classList.remove("hidden");
+      }
+
+      function readFileChunk(blob) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(reader.error);
+
+          reader.readAsArrayBuffer(blob);
+        });
+      }
+
+      async function waitUntilBufferLow(channel, limit) {
+        while (channel.bufferedAmount > limit) {
+          if (channel.readyState !== "open") {
+            throw new Error("Data channel closed");
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+      }
+
+      function completeReceive() {
+        if (!incomingFileMeta || receiveCompleted) return;
+
+        receiveCompleted = true;
+
+        const blob = new Blob(incomingBuffer, {
+          type: incomingFileMeta.fileType || "application/octet-stream"
+        });
+
+        currentObjectUrl = URL.createObjectURL(blob);
+
+        downloadLink.href = currentObjectUrl;
+        downloadLink.download = incomingFileMeta.name || "received-file";
+        downloadLink.textContent = `Download ${incomingFileMeta.name || "received-file"}`;
+        downloadLink.classList.remove("hidden");
+
+        setProgress(100);
+
+        incomingBuffer = [];
+      }
+
+      async function handleDataMessage(event) {
+        if (typeof event.data === "string") {
+          let msg;
+
+          try {
+            msg = JSON.parse(event.data);
+          } catch (err) {
+            return;
+          }
+
+          if (msg.type === "meta") {
+            if (currentObjectUrl) {
+              URL.revokeObjectURL(currentObjectUrl);
+              currentObjectUrl = null;
+            }
+
+            incomingFileMeta = msg;
+            incomingBuffer = [];
+            receivedSize = 0;
+            receiveCompleted = false;
+
+            downloadLink.classList.add("hidden");
+            setProgress(0);
+
+            if (msg.size === 0) {
+              completeReceive();
+            }
+          } else if (msg.type === "end") {
+            if (incomingFileMeta && !receiveCompleted && receivedSize >= incomingFileMeta.size) {
+              completeReceive();
+            }
+          }
+        } else {
+          if (!incomingFileMeta || receiveCompleted) return;
+
+          const chunk = event.data;
+
+          incomingBuffer.push(chunk);
+          receivedSize += chunk.byteLength;
+
+          if (incomingFileMeta.size > 0) {
+            setProgress((receivedSize / incomingFileMeta.size) * 100);
+          }
+
+          if (receivedSize >= incomingFileMeta.size) {
+            completeReceive();
+          }
+        }
+      }
+
+      function setupDataChannel(channel) {
+        channel.binaryType = "arraybuffer";
+        channel.bufferedAmountLowThreshold = 256 * 1024;
+
+        channel.onopen = () => {
+          showConnected();
+        };
+
+        channel.onclose = () => {
+          setConnectionStatus("Data channel closed.", "bad");
+        };
+
+        channel.onerror = (err) => {
+          console.error("Data channel error:", err);
+          showError("Data channel error. Reload and reconnect.");
+        };
+
+        channel.onmessage = handleDataMessage;
+      }
+
+      async function flushPendingCandidates() {
+        if (!peerConnection || !peerConnection.remoteDescription || pendingCandidates.length === 0) {
+          return;
+        }
+
+        const candidates = pendingCandidates;
+        pendingCandidates = [];
+
+        for (const candidate of candidates) {
+          try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (err) {
+            console.warn("Ignoring bad ICE candidate:", err);
+          }
+        }
+      }
+
+      function createPeerConnection(roomId) {
+        const pc = new RTCPeerConnection(rtcConfig);
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit("signal", {
+              room: roomId,
+              signal: {
+                candidate: event.candidate.toJSON()
+              }
+            });
+          }
+        };
+
+        pc.ondatachannel = (event) => {
+          dataChannel = event.channel;
+          setupDataChannel(dataChannel);
+        };
+
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === "connected") {
+            showConnected();
+          } else if (pc.connectionState === "failed") {
+            setConnectionStatus("Peer connection failed. Reload and scan again.", "bad");
+          } else if (pc.connectionState === "disconnected") {
+            setConnectionStatus("Peer connection disconnected.", "bad");
+          }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+          if (pc.iceConnectionState === "failed" && pc.restartIce) {
+            pc.restartIce();
+          }
+        };
+
+        return pc;
+      }
+
+      async function handleSignal(signal) {
+        if (!signal || !window.RTCPeerConnection) return;
+
+        if (!peerConnection && !isInitiator) {
+          peerConnection = createPeerConnection(currentRoom);
+        }
+
+        if (!peerConnection) return;
+
+        if (signal.sdp) {
+          const sdp = signal.sdp;
+
+          if (sdp.type === "offer") {
+            if (peerConnection.signalingState !== "stable") return;
+
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+            await flushPendingCandidates();
+
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            socket.emit("signal", {
+              room: currentRoom,
+              signal: {
+                sdp: {
+                  type: peerConnection.localDescription.type,
+                  sdp: peerConnection.localDescription.sdp
+                }
+              }
+            });
+          } else if (sdp.type === "answer") {
+            if (peerConnection.signalingState !== "have-local-offer") return;
+
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+            await flushPendingCandidates();
+          }
+        } else if (signal.candidate) {
+          if (peerConnection.remoteDescription) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          } else {
+            pendingCandidates.push(signal.candidate);
+          }
+        }
+      }
+
+      function startInitiator() {
+        if (initiatorStarted || !window.RTCPeerConnection) return;
+
+        initiatorStarted = true;
+
+        peerConnection = createPeerConnection(currentRoom);
+
+        dataChannel = peerConnection.createDataChannel("file-transfer");
+        setupDataChannel(dataChannel);
+
+        peerConnection
+          .createOffer()
+          .then((offer) => peerConnection.setLocalDescription(offer))
+          .then(() => {
+            socket.emit("signal", {
+              room: currentRoom,
+              signal: {
+                sdp: {
+                  type: peerConnection.localDescription.type,
+                  sdp: peerConnection.localDescription.sdp
+                }
+              }
+            });
+          })
+          .catch((err) => {
+            console.error("Mobile offer error:", err);
+            showError("Failed to start WebRTC offer. Reload the page.");
+          });
+      }
+
+      function makeQr(roomId) {
+        const qrEl = document.getElementById("qrcode");
+        qrEl.innerHTML = "";
+
+        const u = new URL(window.location.href);
+
+        if (u.pathname && !u.pathname.includes(".") && !u.pathname.endsWith("/")) {
+          u.pathname += "/";
+        }
+
+        u.search = `?room=${roomId}`;
+        u.hash = "";
+
+        const url = u.toString();
+
+        if (roomUrlText) {
+          roomUrlText.textContent = url;
+        }
+
+        if (typeof QRCode !== "undefined") {
+          new QRCode(qrEl, {
+            text: url,
+            width: 200,
+            height: 200
+          });
+        } else {
+          qrEl.textContent = url;
+        }
+      }
+
+      function joinAndMaybeStart() {
+        connectErrorCount = 0;
+
+        socket.emit("join-room", currentRoom);
+
+        if (isInitiator) {
+          startInitiator();
+        }
+      }
+
+      socket.on("signal", (signal) => {
+        signalQueue = signalQueue
+          .then(() => handleSignal(signal))
+          .catch((err) => {
+            console.error("Signaling error:", err);
+            showError("Signaling error. Reload and reconnect.");
+          });
+      });
+
+      socket.on("connect", joinAndMaybeStart);
+
+      socket.on("connect_error", (err) => {
+        connectErrorCount += 1;
+
+        if (connectErrorCount >= 3) {
+          showError(`Signaling connection failed: ${err.message}`);
+        }
+      });
+
+      if (socket.connected) {
+        joinAndMaybeStart();
+      }
+
+      if (!window.RTCPeerConnection) {
+        showError("WebRTC is not available in this browser.");
+      }
+
+      if (!isInitiator) {
+        pcView.classList.remove("hidden");
+        makeQr(currentRoom);
+      } else {
+        transferView.classList.remove("hidden");
+        setConnectionStatus("Connecting to PC...", "warn");
+      }
+
+      fileInput.addEventListener("change", async () => {
+        const file = fileInput.files && fileInput.files[0];
+
+        if (!file) return;
+
+        if (!dataChannel || dataChannel.readyState !== "open") {
+          alert("Data channel is not open yet!");
+          fileInput.value = "";
+          return;
+        }
+
+        fileInput.disabled = true;
+        errorBox.classList.add("hidden");
+        setProgress(0);
+        downloadLink.classList.add("hidden");
+
+        try {
+          dataChannel.send(JSON.stringify({
+            type: "meta",
+            name: file.name,
+            size: file.size,
+            fileType: file.type
+          }));
+
+          if (file.size > 0) {
+            const chunkSize = 16384;
+            let offset = 0;
+
+            while (offset < file.size) {
+              await waitUntilBufferLow(dataChannel, 1024 * 1024);
+
+              const chunk = await readFileChunk(file.slice(offset, offset + chunkSize));
+
+              dataChannel.send(chunk);
+
+              offset += chunk.byteLength;
+
+              setProgress((offset / file.size) * 100);
+            }
+          }
+
+          dataChannel.send(JSON.stringify({ type: "end" }));
+
+          setProgress(100);
+        } catch (err) {
+          console.error("Send file error:", err);
+          showError(`File send failed: ${err && err.message ? err.message : String(err)}`);
+        } finally {
+          fileInput.disabled = false;
+          fileInput.value = "";
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
