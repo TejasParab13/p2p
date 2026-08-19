@@ -7,25 +7,21 @@ import {
 	initHistory,
 } from "./history.js";
 import {
-	peerConnection,
-	dataChannel,
-	pendingCandidates,
-	activeReceives,
-	sendQueue,
-	isSending,
+	webrtcState,
 	initWebRTC,
 	sendFileWebRTC,
 	setupDataChannel,
 	createPeerConnection,
 	flushPendingCandidates,
-	startInitiator as startWebRTCInitiator,
+	resetWebRTC,
 } from "./webrtc.js";
 import {
-	fallbackActive,
+	fallbackState,
 	initFallback,
 	activateFallback,
 	sendFileFallback,
 	handleFallbackSignal,
+	resetFallback,
 } from "./fallback.js";
 
 // ---- DOM refs ----
@@ -86,19 +82,25 @@ initFallback(
 
 // ---- Unified send queue ----
 async function processSendQueue() {
-	if (isSending || sendQueue.length === 0) return;
-	if (!dataChannel || dataChannel.readyState !== "open") {
-		if (!fallbackActive) {
+	if (webrtcState.isSending || webrtcState.sendQueue.length === 0) return;
+	if (
+		!webrtcState.dataChannel ||
+		webrtcState.dataChannel.readyState !== "open"
+	) {
+		if (!fallbackState.active) {
 			setTimeout(processSendQueue, 2000);
 			return;
 		}
 	}
-	isSending = true;
-	const file = sendQueue.shift();
+	webrtcState.isSending = true;
+	const file = webrtcState.sendQueue.shift();
 	try {
-		if (dataChannel && dataChannel.readyState === "open") {
+		if (
+			webrtcState.dataChannel &&
+			webrtcState.dataChannel.readyState === "open"
+		) {
 			await sendFileWebRTC(file);
-		} else if (fallbackActive) {
+		} else if (fallbackState.active) {
 			await sendFileFallback(file);
 		} else {
 			showError("No active connection", errorBox);
@@ -106,7 +108,7 @@ async function processSendQueue() {
 	} catch (err) {
 		console.error("Send error:", err);
 	} finally {
-		isSending = false;
+		webrtcState.isSending = false;
 		processSendQueue();
 	}
 }
@@ -135,16 +137,13 @@ function syncRadios() {
 function applyMode() {
 	const mode = getSelectedMode();
 	console.log("Applying mode:", mode);
-	if (peerConnection) {
-		peerConnection.close();
-		// Reset global references
-		peerConnection = null;
-		dataChannel = null;
-		pendingCandidates = [];
-		initiatorStarted = false;
-	}
-	// Reset fallback state
-	fallbackActive = false;
+
+	// Reset WebRTC
+	resetWebRTC();
+	// Reset fallback
+	resetFallback();
+	initiatorStarted = false;
+
 	if (mode === "fallback") {
 		activateFallback();
 	} else {
@@ -167,11 +166,10 @@ function startInitiator() {
 	if (getSelectedMode() === "fallback") return;
 	initiatorStarted = true;
 	const pc = createPeerConnection(currentRoom, null, processSendQueue);
-	// Store in global variable (webrtc.js exports a variable)
-	peerConnection = pc;
+	webrtcState.peerConnection = pc;
 	const dc = pc.createDataChannel("file-transfer");
 	setupDataChannel(dc, processSendQueue);
-	dataChannel = dc;
+	webrtcState.dataChannel = dc;
 	pc.createOffer()
 		.then((offer) => pc.setLocalDescription(offer))
 		.then(() =>
@@ -204,42 +202,47 @@ async function handleSignal(signal) {
 	if (getSelectedMode() === "fallback") return;
 
 	// Ensure peerConnection exists (for non-initiator)
-	if (!peerConnection && !isInitiator) {
+	if (!webrtcState.peerConnection && !isInitiator) {
 		const pc = createPeerConnection(currentRoom, null, processSendQueue);
-		peerConnection = pc;
+		webrtcState.peerConnection = pc;
 	}
-	if (!peerConnection) return;
+	if (!webrtcState.peerConnection) return;
 	if (signal.sdp) {
 		if (signal.sdp.type === "offer") {
-			if (peerConnection.signalingState !== "stable") return;
-			await peerConnection.setRemoteDescription(
+			if (webrtcState.peerConnection.signalingState !== "stable") return;
+			await webrtcState.peerConnection.setRemoteDescription(
 				new RTCSessionDescription(signal.sdp),
 			);
 			await flushPendingCandidates();
-			const answer = await peerConnection.createAnswer();
-			await peerConnection.setLocalDescription(answer);
+			const answer = await webrtcState.peerConnection.createAnswer();
+			await webrtcState.peerConnection.setLocalDescription(answer);
 			socket.emit("signal", {
 				room: currentRoom,
 				signal: {
 					sdp: {
-						type: peerConnection.localDescription.type,
-						sdp: peerConnection.localDescription.sdp,
+						type: webrtcState.peerConnection.localDescription.type,
+						sdp: webrtcState.peerConnection.localDescription.sdp,
 					},
 				},
 			});
 		} else if (signal.sdp.type === "answer") {
-			if (peerConnection.signalingState !== "have-local-offer") return;
-			await peerConnection.setRemoteDescription(
+			if (
+				webrtcState.peerConnection.signalingState !== "have-local-offer"
+			)
+				return;
+			await webrtcState.peerConnection.setRemoteDescription(
 				new RTCSessionDescription(signal.sdp),
 			);
 			await flushPendingCandidates();
 		}
 	} else if (signal.candidate) {
-		if (peerConnection.remoteDescription)
-			await peerConnection.addIceCandidate(
+		if (webrtcState.peerConnection.remoteDescription) {
+			await webrtcState.peerConnection.addIceCandidate(
 				new RTCIceCandidate(signal.candidate),
 			);
-		else pendingCandidates.push(signal.candidate);
+		} else {
+			webrtcState.pendingCandidates.push(signal.candidate);
+		}
 	}
 }
 
@@ -310,8 +313,9 @@ async function handleFileSelect(event) {
 	const files = event.target.files;
 	if (!files || files.length === 0) return;
 	if (
-		!fallbackActive &&
-		(!dataChannel || dataChannel.readyState !== "open")
+		!fallbackState.active &&
+		(!webrtcState.dataChannel ||
+			webrtcState.dataChannel.readyState !== "open")
 	) {
 		showError(
 			"Waiting for connection. If stuck, switch to Relay mode.",
@@ -320,7 +324,7 @@ async function handleFileSelect(event) {
 		event.target.value = "";
 		return;
 	}
-	for (let i = 0; i < files.length; i++) sendQueue.push(files[i]);
+	for (let i = 0; i < files.length; i++) webrtcState.sendQueue.push(files[i]);
 	event.target.value = "";
 	processSendQueue();
 }
@@ -342,7 +346,7 @@ if (dropZone && fileInputPC) {
 		dropZone.classList.remove("drop-zone-active");
 		if (e.dataTransfer.files.length) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++)
-				sendQueue.push(e.dataTransfer.files[i]);
+				webrtcState.sendQueue.push(e.dataTransfer.files[i]);
 			processSendQueue();
 		}
 	});

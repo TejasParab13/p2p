@@ -2,12 +2,15 @@ import { RTC_CONFIG } from "./config.js";
 import { setConnectionStatus, showError } from "./utils.js";
 import { transferHistory, renderHistory } from "./history.js";
 
-export let peerConnection = null;
-export let dataChannel = null;
-export let pendingCandidates = [];
-export let activeReceives = new Map();
-export let sendQueue = [];
-export let isSending = false;
+// Mutable state object – exported so main.js can modify it
+export const webrtcState = {
+	peerConnection: null,
+	dataChannel: null,
+	pendingCandidates: [],
+	activeReceives: new Map(),
+	sendQueue: [],
+	isSending: false,
+};
 
 // These will be set from main
 let socketRef = null;
@@ -66,7 +69,7 @@ export async function sendFileWebRTC(file) {
 	});
 	renderHistory();
 	try {
-		dataChannel.send(
+		webrtcState.dataChannel.send(
 			JSON.stringify({
 				type: "meta",
 				id: transferId,
@@ -79,11 +82,14 @@ export async function sendFileWebRTC(file) {
 			const chunkSize = 16384;
 			let offset = 0;
 			while (offset < file.size) {
-				await waitUntilBufferLow(dataChannel, 2 * 1024 * 1024);
+				await waitUntilBufferLow(
+					webrtcState.dataChannel,
+					2 * 1024 * 1024,
+				);
 				const chunk = await readFileChunk(
 					file.slice(offset, offset + chunkSize),
 				);
-				dataChannel.send(chunk);
+				webrtcState.dataChannel.send(chunk);
 				offset += chunk.byteLength || chunk.size || 0;
 				const histItem = transferHistory.find(
 					(h) => h.id === transferId,
@@ -95,7 +101,9 @@ export async function sendFileWebRTC(file) {
 				}
 			}
 		}
-		dataChannel.send(JSON.stringify({ type: "end", id: transferId }));
+		webrtcState.dataChannel.send(
+			JSON.stringify({ type: "end", id: transferId }),
+		);
 		const histItem = transferHistory.find((h) => h.id === transferId);
 		if (histItem) {
 			histItem.status = "completed";
@@ -114,7 +122,7 @@ export async function sendFileWebRTC(file) {
 }
 
 function completeReceiveWebRTC(id) {
-	const receiveData = activeReceives.get(id);
+	const receiveData = webrtcState.activeReceives.get(id);
 	if (!receiveData) return;
 	const histItem = transferHistory.find((h) => h.id === id);
 	if (histItem) {
@@ -131,7 +139,7 @@ function completeReceiveWebRTC(id) {
 		}
 		renderHistory();
 	}
-	activeReceives.delete(id);
+	webrtcState.activeReceives.delete(id);
 }
 
 async function handleDataMessage(event) {
@@ -143,7 +151,7 @@ async function handleDataMessage(event) {
 			return;
 		}
 		if (msg.type === "meta") {
-			activeReceives.set(msg.id, {
+			webrtcState.activeReceives.set(msg.id, {
 				buffer: [],
 				receivedSize: 0,
 				meta: msg,
@@ -182,9 +190,9 @@ async function handleDataMessage(event) {
 		return;
 	}
 	if (byteLength === 0) return;
-	const activeId = Array.from(activeReceives.keys())[0];
+	const activeId = Array.from(webrtcState.activeReceives.keys())[0];
 	if (!activeId) return;
-	const receiveData = activeReceives.get(activeId);
+	const receiveData = webrtcState.activeReceives.get(activeId);
 	if (!receiveData) return;
 	receiveData.buffer.push(arrayBuffer);
 	receiveData.receivedSize += byteLength;
@@ -229,16 +237,16 @@ export function setupDataChannel(channel, processSendQueueCallback) {
 
 export async function flushPendingCandidates() {
 	if (
-		!peerConnection ||
-		!peerConnection.remoteDescription ||
-		pendingCandidates.length === 0
+		!webrtcState.peerConnection ||
+		!webrtcState.peerConnection.remoteDescription ||
+		webrtcState.pendingCandidates.length === 0
 	)
 		return;
-	const candidates = pendingCandidates;
-	pendingCandidates = [];
+	const candidates = webrtcState.pendingCandidates;
+	webrtcState.pendingCandidates = [];
 	for (const candidate of candidates) {
 		try {
-			await peerConnection.addIceCandidate(
+			await webrtcState.peerConnection.addIceCandidate(
 				new RTCIceCandidate(candidate),
 			);
 		} catch (_) {}
@@ -261,9 +269,9 @@ export function createPeerConnection(
 		}
 	};
 	pc.ondatachannel = (event) => {
-		dataChannel = event.channel;
-		setupDataChannel(dataChannel, processSendQueueCallback);
-		if (onDataChannel) onDataChannel(dataChannel);
+		webrtcState.dataChannel = event.channel;
+		setupDataChannel(webrtcState.dataChannel, processSendQueueCallback);
+		if (onDataChannel) onDataChannel(webrtcState.dataChannel);
 	};
 	pc.onconnectionstatechange = () => {
 		console.log("Connection state:", pc.connectionState);
@@ -292,4 +300,16 @@ export function createPeerConnection(
 		console.warn("ICE candidate error:", err);
 	};
 	return pc;
+}
+
+export function resetWebRTC() {
+	if (webrtcState.peerConnection) {
+		webrtcState.peerConnection.close();
+	}
+	webrtcState.peerConnection = null;
+	webrtcState.dataChannel = null;
+	webrtcState.pendingCandidates = [];
+	webrtcState.activeReceives.clear();
+	webrtcState.sendQueue = [];
+	webrtcState.isSending = false;
 }

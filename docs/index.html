@@ -8,13 +8,13 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <!-- Load modular JS files in order -->
-  <script defer src="js/config.js"></script>
-  <script defer src="js/utils.js"></script>
-  <script defer src="js/history.js"></script>
-  <script defer src="js/webrtc.js"></script>
-  <script defer src="js/fallback.js"></script>
-  <script defer src="js/main.js"></script>
+  <!-- Load modular JS files as ES modules -->
+  <script type="module" src="js/config.js"></script>
+  <script type="module" src="js/utils.js"></script>
+  <script type="module" src="js/history.js"></script>
+  <script type="module" src="js/webrtc.js"></script>
+  <script type="module" src="js/fallback.js"></script>
+  <script type="module" src="js/main.js"></script>
 </head>
 <body>
   <div id="error-box" class="hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-red-500/10 border border-red-500/30 text-red-200 rounded-xl px-6 py-3 text-sm font-medium shadow-2xl backdrop-blur-xl max-w-lg w-full text-center transition-all"></div>

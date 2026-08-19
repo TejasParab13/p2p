@@ -1,12 +1,15 @@
 import { transferHistory, renderHistory } from "./history.js";
 import { setConnectionStatus, showError } from "./utils.js";
 
-export let fallbackActive = false;
-export let fallbackReceiveBuffer = [];
-export let fallbackMeta = null;
-export let fallbackReceivedSize = 0;
-export let fallbackComplete = false;
-export let fallbackObjectUrl = null;
+// Mutable state object – exported so main.js can modify it
+export const fallbackState = {
+	active: false,
+	receiveBuffer: [],
+	meta: null,
+	receivedSize: 0,
+	complete: false,
+	objectUrl: null,
+};
 
 // These will be set from main
 let socketRef = null;
@@ -33,8 +36,8 @@ export function initFallback(
 }
 
 export function activateFallback() {
-	if (fallbackActive) return;
-	fallbackActive = true;
+	if (fallbackState.active) return;
+	fallbackState.active = true;
 	setConnectionStatus(
 		connectionStatusRef,
 		statusTextRef,
@@ -46,6 +49,18 @@ export function activateFallback() {
 		errorBoxRef,
 	);
 	if (processSendQueueCallback) processSendQueueCallback();
+}
+
+export function resetFallback() {
+	fallbackState.active = false;
+	fallbackState.receiveBuffer = [];
+	fallbackState.meta = null;
+	fallbackState.receivedSize = 0;
+	fallbackState.complete = false;
+	if (fallbackState.objectUrl) {
+		URL.revokeObjectURL(fallbackState.objectUrl);
+		fallbackState.objectUrl = null;
+	}
 }
 
 export async function sendFileFallback(file) {
@@ -128,11 +143,11 @@ export async function sendFileFallback(file) {
 export function handleFallbackSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
 	if (signal.type === "file-meta") {
-		fallbackMeta = signal;
-		fallbackReceiveBuffer = [];
-		fallbackReceivedSize = 0;
-		fallbackComplete = false;
-		fallbackObjectUrl = null;
+		fallbackState.meta = signal;
+		fallbackState.receiveBuffer = [];
+		fallbackState.receivedSize = 0;
+		fallbackState.complete = false;
+		fallbackState.objectUrl = null;
 		transferHistory.push({
 			id: signal.id,
 			name: signal.name,
@@ -147,23 +162,24 @@ export function handleFallbackSignal(signal) {
 		renderHistory();
 		if (signal.size === 0) completeFallbackReceive(signal.id);
 	} else if (signal.type === "file-chunk") {
-		if (!fallbackMeta || fallbackMeta.id !== signal.id) return;
+		if (!fallbackState.meta || fallbackState.meta.id !== signal.id) return;
 		try {
 			const binary = atob(signal.data);
 			const len = binary.length;
 			const bytes = new Uint8Array(len);
 			for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-			fallbackReceiveBuffer.push(bytes.buffer);
-			fallbackReceivedSize += bytes.byteLength;
+			fallbackState.receiveBuffer.push(bytes.buffer);
+			fallbackState.receivedSize += bytes.byteLength;
 			const histItem = transferHistory.find((h) => h.id === signal.id);
-			if (histItem && fallbackMeta.size > 0) {
+			if (histItem && fallbackState.meta.size > 0) {
 				const pct = Math.round(
-					(fallbackReceivedSize / fallbackMeta.size) * 100,
+					(fallbackState.receivedSize / fallbackState.meta.size) *
+						100,
 				);
 				histItem.progress = Math.min(pct, 99);
 				renderHistory();
 			}
-			if (fallbackReceivedSize >= fallbackMeta.size) {
+			if (fallbackState.receivedSize >= fallbackState.meta.size) {
 				completeFallbackReceive(signal.id);
 			}
 		} catch (e) {
@@ -175,16 +191,21 @@ export function handleFallbackSignal(signal) {
 }
 
 function completeFallbackReceive(id) {
-	if (fallbackComplete || !fallbackMeta || fallbackMeta.id !== id) return;
-	fallbackComplete = true;
+	if (
+		fallbackState.complete ||
+		!fallbackState.meta ||
+		fallbackState.meta.id !== id
+	)
+		return;
+	fallbackState.complete = true;
 	const histItem = transferHistory.find((h) => h.id === id);
 	if (histItem) {
 		try {
-			const blob = new Blob(fallbackReceiveBuffer, {
+			const blob = new Blob(fallbackState.receiveBuffer, {
 				type: histItem.type || "application/octet-stream",
 			});
-			fallbackObjectUrl = URL.createObjectURL(blob);
-			histItem.objectUrl = fallbackObjectUrl;
+			fallbackState.objectUrl = URL.createObjectURL(blob);
+			histItem.objectUrl = fallbackState.objectUrl;
 			histItem.status = "completed";
 			histItem.progress = 100;
 		} catch (e) {
@@ -193,6 +214,6 @@ function completeFallbackReceive(id) {
 		}
 		renderHistory();
 	}
-	fallbackReceiveBuffer = [];
-	fallbackMeta = null;
+	fallbackState.receiveBuffer = [];
+	fallbackState.meta = null;
 }
