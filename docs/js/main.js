@@ -39,9 +39,7 @@ const historyListMobile = document.getElementById("history-list-mobile");
 const historyEmptyPC = document.getElementById("history-empty");
 const historyEmptyMobile = document.getElementById("history-empty-mobile");
 const switchBtnPC = document.getElementById("switch-mode-btn");
-const switchBtnMobile = document.getElementById("switch-mode-mobile");
 const modeRadiosPC = document.querySelectorAll('input[name="mode"]');
-const modeRadiosMobile = document.querySelectorAll('input[name="mode-mobile"]');
 
 // ---- Init history module ----
 initHistory({
@@ -57,10 +55,100 @@ const socket = io(SIGNALING_URL, { transports: ["websocket", "polling"] });
 // ---- State ----
 let initiatorStarted = false;
 let connectErrorCount = 0;
+let roomJoined = false; // NEW: track room join confirmation
 const params = new URLSearchParams(window.location.search);
 const urlRoom = (params.get("room") || "").trim();
 const isInitiator = Boolean(urlRoom);
 const currentRoom = urlRoom || Math.random().toString(36).substring(2, 9);
+
+// ---- Mode management ----
+let currentMode = "webrtc"; // default
+
+function getSelectedMode() {
+	for (const radio of modeRadiosPC) {
+		if (radio.checked) return radio.value;
+	}
+	return currentMode;
+}
+
+function setModeFromSignal(mode) {
+	if (mode !== "webrtc" && mode !== "fallback") return;
+	console.log("Mode changed via signal:", mode);
+	currentMode = mode;
+	applyMode();
+}
+
+function syncRadios() {
+	const mode = getSelectedMode();
+	for (const radio of modeRadiosPC) {
+		radio.checked = radio.value === mode;
+	}
+}
+
+function applyMode() {
+	const mode = getSelectedMode();
+	console.log("Applying mode:", mode);
+
+	resetWebRTC();
+	resetFallback();
+	initiatorStarted = false;
+
+	if (mode === "fallback") {
+		activateFallback();
+		if (!isInitiator) {
+			socket.emit("signal", {
+				room: currentRoom,
+				signal: { type: "mode-change", mode: "fallback" },
+			});
+		}
+	} else {
+		if (isInitiator) {
+			startInitiator();
+		} else {
+			setConnectionStatus(
+				connectionStatus,
+				statusText,
+				"Waiting for phone...",
+				"warn",
+			);
+			socket.emit("signal", {
+				room: currentRoom,
+				signal: { type: "mode-change", mode: "webrtc" },
+			});
+		}
+	}
+}
+
+function startInitiator() {
+	if (initiatorStarted || !window.RTCPeerConnection) return;
+	if (getSelectedMode() === "fallback") return;
+	initiatorStarted = true;
+	const pc = createPeerConnection(currentRoom, null, processSendQueue);
+	webrtcState.peerConnection = pc;
+	const dc = pc.createDataChannel("file-transfer");
+	setupDataChannel(dc, processSendQueue);
+	webrtcState.dataChannel = dc;
+	pc.createOffer()
+		.then((offer) => pc.setLocalDescription(offer))
+		.then(() =>
+			socket.emit("signal", {
+				room: currentRoom,
+				signal: {
+					sdp: {
+						type: pc.localDescription.type,
+						sdp: pc.localDescription.sdp,
+					},
+				},
+			}),
+		)
+		.catch((err) => {
+			console.error("Offer error:", err);
+			showError(
+				"Failed to start WebRTC offer. Try Relay mode.",
+				errorBox,
+			);
+		});
+}
 
 // ---- Init modules ----
 initWebRTC(
@@ -84,7 +172,6 @@ initFallback(
 async function processSendQueue() {
 	if (webrtcState.isSending || webrtcState.sendQueue.length === 0) return;
 
-	// If fallback is active, skip dataChannel check
 	if (!fallbackState.active) {
 		if (
 			!webrtcState.dataChannel ||
@@ -117,113 +204,33 @@ async function processSendQueue() {
 	}
 }
 
-// ---- Mode selection ----
-function getSelectedMode() {
-	// PC radios first, then mobile
-	for (const radio of modeRadiosPC) {
-		if (radio.checked) return radio.value;
-	}
-	for (const radio of modeRadiosMobile) {
-		if (radio.checked) return radio.value;
-	}
-	return "webrtc";
-}
-
-function syncRadios() {
-	const mode = getSelectedMode();
-	for (const radio of modeRadiosPC) {
-		radio.checked = radio.value === mode;
-	}
-	for (const radio of modeRadiosMobile) {
-		radio.checked = radio.value === mode;
-	}
-}
-
-function applyMode() {
-	const mode = getSelectedMode();
-	console.log("Applying mode:", mode);
-
-	// Reset WebRTC
-	resetWebRTC();
-	// Reset fallback
-	resetFallback();
-	initiatorStarted = false;
-
-	if (mode === "fallback") {
-		activateFallback();
-		// If we are the initiator, we don't need WebRTC at all
-		// But we keep the peer closed, and we rely on fallback.
-		// Status is set by activateFallback.
-	} else {
-		// WebRTC mode
-		if (isInitiator) {
-			startInitiator();
-		} else {
-			setConnectionStatus(
-				connectionStatus,
-				statusText,
-				"Waiting for PC...",
-				"warn",
-			);
-		}
-	}
-}
-
-// ---- WebRTC initiator wrapper ----
-function startInitiator() {
-	if (initiatorStarted || !window.RTCPeerConnection) return;
-	if (getSelectedMode() === "fallback") {
-		// This should not happen because applyMode handles fallback
-		return;
-	}
-	initiatorStarted = true;
-	const pc = createPeerConnection(currentRoom, null, processSendQueue);
-	webrtcState.peerConnection = pc;
-	const dc = pc.createDataChannel("file-transfer");
-	setupDataChannel(dc, processSendQueue);
-	webrtcState.dataChannel = dc;
-	pc.createOffer()
-		.then((offer) => pc.setLocalDescription(offer))
-		.then(() =>
-			socket.emit("signal", {
-				room: currentRoom,
-				signal: {
-					sdp: {
-						type: pc.localDescription.type,
-						sdp: pc.localDescription.sdp,
-					},
-				},
-			}),
-		)
-		.catch((err) => {
-			console.error("Offer error:", err);
-			showError(
-				"Failed to start WebRTC offer. Try Relay mode.",
-				errorBox,
-			);
-		});
-}
-
 // ---- Signaling ----
 async function handleSignal(signal) {
-	if (!signal || !window.RTCPeerConnection) return;
-	// Always handle fallback signals first
+	if (!signal || typeof signal !== "object") return;
+
+	if (signal.type === "mode-change" && typeof signal.mode === "string") {
+		setModeFromSignal(signal.mode);
+		return;
+	}
+
 	if (signal.type && signal.type.startsWith("file-")) {
 		handleFallbackSignal(signal);
 		return;
 	}
-	// If fallback is active, ignore WebRTC signals
+
 	if (getSelectedMode() === "fallback") {
 		console.log("Ignoring WebRTC signal because fallback is active");
 		return;
 	}
 
-	// Ensure peerConnection exists (for non-initiator)
+	if (!window.RTCPeerConnection) return;
+
 	if (!webrtcState.peerConnection && !isInitiator) {
 		const pc = createPeerConnection(currentRoom, null, processSendQueue);
 		webrtcState.peerConnection = pc;
 	}
 	if (!webrtcState.peerConnection) return;
+
 	if (signal.sdp) {
 		if (signal.sdp.type === "offer") {
 			if (webrtcState.peerConnection.signalingState !== "stable") return;
@@ -266,6 +273,10 @@ async function handleSignal(signal) {
 // ---- QR & join ----
 function makeQr(roomId) {
 	const qrEl = document.getElementById("qrcode");
+	if (!qrEl) {
+		console.warn("QR element not found – skipping QR generation");
+		return;
+	}
 	qrEl.innerHTML = "";
 	const u = new URL(window.location.href);
 	if (u.pathname && !u.pathname.includes(".") && !u.pathname.endsWith("/"))
@@ -281,36 +292,55 @@ function makeQr(roomId) {
 			colorDark: "#09090b",
 			colorLight: "#ffffff",
 		});
+	} else {
+		console.warn("QRCode library not loaded – falling back to text");
+		qrEl.textContent = u.toString();
 	}
 }
 
 function joinAndMaybeStart() {
 	connectErrorCount = 0;
 	socket.emit("join-room", currentRoom);
-	if (isInitiator) {
-		const mode = getSelectedMode();
-		if (mode === "fallback") {
-			// If fallback mode is selected on load, activate immediately
-			activateFallback();
-		} else {
-			startInitiator();
-		}
-	}
+	// Do NOT apply mode yet; wait for room-joined confirmation
 }
 
+// ---- NEW: Handle room-joined confirmation ----
+socket.on("room-joined", (data) => {
+	console.log("Room joined:", data.room);
+	roomJoined = true;
+	if (isInitiator) {
+		// Phone: wait for PC mode
+		setConnectionStatus(
+			connectionStatus,
+			statusText,
+			"Waiting for PC mode...",
+			"warn",
+		);
+	} else {
+		// PC: now we can apply mode
+		applyMode();
+	}
+});
+
+// ---- Socket events ----
 socket.on("signal", (signal) => {
 	handleSignal(signal).catch((err) =>
 		showError("Signaling error: " + err.message, errorBox),
 	);
 });
-socket.on("connect", joinAndMaybeStart);
+socket.on("connect", () => {
+	console.log("Socket connected");
+	joinAndMaybeStart();
+});
 socket.on("connect_error", (err) => {
 	connectErrorCount += 1;
 	if (connectErrorCount >= 3)
 		showError(`Signaling connection failed: ${err.message}`, errorBox);
 });
 
+// If socket is already connected, start
 if (socket.connected) joinAndMaybeStart();
+
 if (!window.RTCPeerConnection)
 	showError("WebRTC not supported. Use Relay mode.", errorBox);
 
@@ -318,7 +348,6 @@ if (!window.RTCPeerConnection)
 if (!isInitiator) {
 	pcView.classList.remove("hidden");
 	makeQr(currentRoom);
-	// PC default status
 	setConnectionStatus(
 		connectionStatus,
 		statusText,
@@ -327,15 +356,12 @@ if (!isInitiator) {
 	);
 } else {
 	mobileView.classList.remove("hidden");
-	// If fallback is active, status is already set by activateFallback, else show connecting
-	if (!fallbackState.active) {
-		setConnectionStatus(
-			connectionStatus,
-			statusText,
-			"Connecting to PC...",
-			"warn",
-		);
-	}
+	setConnectionStatus(
+		connectionStatus,
+		statusText,
+		"Connecting to PC...",
+		"warn",
+	);
 }
 
 // ---- File handling ----
@@ -343,7 +369,6 @@ async function handleFileSelect(event) {
 	const files = event.target.files;
 	if (!files || files.length === 0) return;
 
-	// Check if we have a working connection
 	const hasWebRTC =
 		webrtcState.dataChannel &&
 		webrtcState.dataChannel.readyState === "open";
@@ -386,23 +411,14 @@ if (dropZone && fileInputPC) {
 	});
 }
 
-// ---- Mode switch buttons ----
+// ---- Mode switch button (PC only) ----
 if (switchBtnPC) {
 	switchBtnPC.addEventListener("click", () => {
 		syncRadios();
 		applyMode();
 	});
 }
-if (switchBtnMobile) {
-	switchBtnMobile.addEventListener("click", () => {
-		syncRadios();
-		applyMode();
-	});
-}
 for (const radio of modeRadiosPC) {
-	radio.addEventListener("change", syncRadios);
-}
-for (const radio of modeRadiosMobile) {
 	radio.addEventListener("change", syncRadios);
 }
 syncRadios();
