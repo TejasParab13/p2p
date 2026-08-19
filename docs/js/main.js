@@ -55,7 +55,6 @@ const socket = io(SIGNALING_URL, { transports: ["websocket", "polling"] });
 // ---- State ----
 let initiatorStarted = false;
 let connectErrorCount = 0;
-let roomJoined = false; // NEW: track room join confirmation
 const params = new URLSearchParams(window.location.search);
 const urlRoom = (params.get("room") || "").trim();
 const isInitiator = Boolean(urlRoom);
@@ -298,16 +297,10 @@ function makeQr(roomId) {
 	}
 }
 
+// ---- Join and start (original flow) ----
 function joinAndMaybeStart() {
 	connectErrorCount = 0;
 	socket.emit("join-room", currentRoom);
-	// Do NOT apply mode yet; wait for room-joined confirmation
-}
-
-// ---- NEW: Handle room-joined confirmation ----
-socket.on("room-joined", (data) => {
-	console.log("Room joined:", data.room);
-	roomJoined = true;
 	if (isInitiator) {
 		// Phone: wait for PC mode
 		setConnectionStatus(
@@ -317,10 +310,10 @@ socket.on("room-joined", (data) => {
 			"warn",
 		);
 	} else {
-		// PC: now we can apply mode
+		// PC: apply mode immediately (original behavior)
 		applyMode();
 	}
-});
+}
 
 // ---- Socket events ----
 socket.on("signal", (signal) => {
