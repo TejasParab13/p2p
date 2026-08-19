@@ -36,8 +36,12 @@ export function initFallback(
 }
 
 export function activateFallback() {
-	if (fallbackState.active) return;
+	if (fallbackState.active) {
+		console.log("Fallback already active");
+		return;
+	}
 	fallbackState.active = true;
+	console.log("Fallback activated");
 	setConnectionStatus(
 		connectionStatusRef,
 		statusTextRef,
@@ -61,6 +65,7 @@ export function resetFallback() {
 		URL.revokeObjectURL(fallbackState.objectUrl);
 		fallbackState.objectUrl = null;
 	}
+	console.log("Fallback reset");
 }
 
 export async function sendFileFallback(file) {

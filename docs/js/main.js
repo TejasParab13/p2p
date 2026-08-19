@@ -83,21 +83,25 @@ initFallback(
 // ---- Unified send queue ----
 async function processSendQueue() {
 	if (webrtcState.isSending || webrtcState.sendQueue.length === 0) return;
-	if (
-		!webrtcState.dataChannel ||
-		webrtcState.dataChannel.readyState !== "open"
-	) {
-		if (!fallbackState.active) {
+
+	// If fallback is active, skip dataChannel check
+	if (!fallbackState.active) {
+		if (
+			!webrtcState.dataChannel ||
+			webrtcState.dataChannel.readyState !== "open"
+		) {
 			setTimeout(processSendQueue, 2000);
 			return;
 		}
 	}
+
 	webrtcState.isSending = true;
 	const file = webrtcState.sendQueue.shift();
 	try {
 		if (
 			webrtcState.dataChannel &&
-			webrtcState.dataChannel.readyState === "open"
+			webrtcState.dataChannel.readyState === "open" &&
+			!fallbackState.active
 		) {
 			await sendFileWebRTC(file);
 		} else if (fallbackState.active) {
@@ -115,6 +119,7 @@ async function processSendQueue() {
 
 // ---- Mode selection ----
 function getSelectedMode() {
+	// PC radios first, then mobile
 	for (const radio of modeRadiosPC) {
 		if (radio.checked) return radio.value;
 	}
@@ -146,7 +151,11 @@ function applyMode() {
 
 	if (mode === "fallback") {
 		activateFallback();
+		// If we are the initiator, we don't need WebRTC at all
+		// But we keep the peer closed, and we rely on fallback.
+		// Status is set by activateFallback.
 	} else {
+		// WebRTC mode
 		if (isInitiator) {
 			startInitiator();
 		} else {
@@ -163,7 +172,10 @@ function applyMode() {
 // ---- WebRTC initiator wrapper ----
 function startInitiator() {
 	if (initiatorStarted || !window.RTCPeerConnection) return;
-	if (getSelectedMode() === "fallback") return;
+	if (getSelectedMode() === "fallback") {
+		// This should not happen because applyMode handles fallback
+		return;
+	}
 	initiatorStarted = true;
 	const pc = createPeerConnection(currentRoom, null, processSendQueue);
 	webrtcState.peerConnection = pc;
@@ -195,11 +207,16 @@ function startInitiator() {
 // ---- Signaling ----
 async function handleSignal(signal) {
 	if (!signal || !window.RTCPeerConnection) return;
+	// Always handle fallback signals first
 	if (signal.type && signal.type.startsWith("file-")) {
 		handleFallbackSignal(signal);
 		return;
 	}
-	if (getSelectedMode() === "fallback") return;
+	// If fallback is active, ignore WebRTC signals
+	if (getSelectedMode() === "fallback") {
+		console.log("Ignoring WebRTC signal because fallback is active");
+		return;
+	}
 
 	// Ensure peerConnection exists (for non-initiator)
 	if (!webrtcState.peerConnection && !isInitiator) {
@@ -271,7 +288,9 @@ function joinAndMaybeStart() {
 	connectErrorCount = 0;
 	socket.emit("join-room", currentRoom);
 	if (isInitiator) {
-		if (getSelectedMode() === "fallback") {
+		const mode = getSelectedMode();
+		if (mode === "fallback") {
+			// If fallback mode is selected on load, activate immediately
 			activateFallback();
 		} else {
 			startInitiator();
@@ -295,35 +314,50 @@ if (socket.connected) joinAndMaybeStart();
 if (!window.RTCPeerConnection)
 	showError("WebRTC not supported. Use Relay mode.", errorBox);
 
+// ---- View setup ----
 if (!isInitiator) {
 	pcView.classList.remove("hidden");
 	makeQr(currentRoom);
-} else {
-	mobileView.classList.remove("hidden");
+	// PC default status
 	setConnectionStatus(
 		connectionStatus,
 		statusText,
-		"Connecting to PC...",
+		"Waiting for phone to scan...",
 		"warn",
 	);
+} else {
+	mobileView.classList.remove("hidden");
+	// If fallback is active, status is already set by activateFallback, else show connecting
+	if (!fallbackState.active) {
+		setConnectionStatus(
+			connectionStatus,
+			statusText,
+			"Connecting to PC...",
+			"warn",
+		);
+	}
 }
 
 // ---- File handling ----
 async function handleFileSelect(event) {
 	const files = event.target.files;
 	if (!files || files.length === 0) return;
-	if (
-		!fallbackState.active &&
-		(!webrtcState.dataChannel ||
-			webrtcState.dataChannel.readyState !== "open")
-	) {
+
+	// Check if we have a working connection
+	const hasWebRTC =
+		webrtcState.dataChannel &&
+		webrtcState.dataChannel.readyState === "open";
+	const hasFallback = fallbackState.active;
+
+	if (!hasWebRTC && !hasFallback) {
 		showError(
-			"Waiting for connection. If stuck, switch to Relay mode.",
+			"No active connection. Please ensure you are connected or switch to Relay mode.",
 			errorBox,
 		);
 		event.target.value = "";
 		return;
 	}
+
 	for (let i = 0; i < files.length; i++) webrtcState.sendQueue.push(files[i]);
 	event.target.value = "";
 	processSendQueue();
