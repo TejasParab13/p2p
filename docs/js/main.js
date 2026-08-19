@@ -38,7 +38,6 @@ const historyListPC = document.getElementById("history-list");
 const historyListMobile = document.getElementById("history-list-mobile");
 const historyEmptyPC = document.getElementById("history-empty");
 const historyEmptyMobile = document.getElementById("history-empty-mobile");
-const switchBtnPC = document.getElementById("switch-mode-btn");
 const modeRadiosPC = document.querySelectorAll('input[name="mode"]');
 
 // ---- Init history module ----
@@ -74,14 +73,15 @@ function setModeFromSignal(mode) {
 	if (mode !== "webrtc" && mode !== "fallback") return;
 	console.log("Mode changed via signal:", mode);
 	currentMode = mode;
+	// Update PC radio to match (if on PC)
+	for (const radio of modeRadiosPC) {
+		radio.checked = radio.value === mode;
+	}
 	applyMode();
 }
 
 function syncRadios() {
-	const mode = getSelectedMode();
-	for (const radio of modeRadiosPC) {
-		radio.checked = radio.value === mode;
-	}
+	// no-op, handled by change event
 }
 
 function applyMode() {
@@ -309,6 +309,7 @@ function joinAndMaybeStart() {
 			"warn",
 		);
 	} else {
+		// PC: apply mode (uses the currently selected radio)
 		applyMode();
 	}
 }
@@ -396,17 +397,52 @@ if (dropZone && fileInputPC) {
 	});
 }
 
-// ---- Mode switch button (PC only) ----
-if (switchBtnPC) {
-	switchBtnPC.addEventListener("click", () => {
-		syncRadios();
+// ---- Mode change: auto-apply when radio changes ----
+for (const radio of modeRadiosPC) {
+	radio.addEventListener("change", () => {
+		// Update the sliding indicator (optional)
+		const slider = document.getElementById("mode-slider");
+		if (slider) {
+			const selected = document.querySelector(
+				'input[name="mode"]:checked',
+			);
+			if (selected) {
+				const labels = document.querySelectorAll("label[data-mode]");
+				let index = 0;
+				for (const label of labels) {
+					if (
+						label.querySelector('input[type="radio"]') === selected
+					) {
+						break;
+					}
+					index++;
+				}
+				slider.style.transform = `translateX(${index * 100}%)`;
+			}
+		}
 		applyMode();
 	});
 }
-for (const radio of modeRadiosPC) {
-	radio.addEventListener("change", syncRadios);
-}
-syncRadios();
+
+// ---- Initial sync of slider ----
+// After page load, set slider position based on default checked
+window.addEventListener("load", () => {
+	const slider = document.getElementById("mode-slider");
+	if (slider) {
+		const selected = document.querySelector('input[name="mode"]:checked');
+		if (selected) {
+			const labels = document.querySelectorAll("label[data-mode]");
+			let index = 0;
+			for (const label of labels) {
+				if (label.querySelector('input[type="radio"]') === selected) {
+					break;
+				}
+				index++;
+			}
+			slider.style.transform = `translateX(${index * 100}%)`;
+		}
+	}
+});
 
 // ---- Expose clearHistory to global ----
 window.clearHistory = clearHistory;

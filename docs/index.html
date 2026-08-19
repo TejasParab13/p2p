@@ -24,13 +24,14 @@
 
     <!-- PC View -->
     <div id="pc-view" class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 relative z-0">
-      <!-- Column 1: Branding, Connection, Mode Selector -->
+      <!-- Column 1 -->
       <div class="lg:col-span-3 glass-panel rounded-2xl p-6 flex flex-col h-full">
+        <!-- Branding -->
         <div class="flex items-center gap-3 mb-6 pb-6 border-b border-zinc-800/50">
           <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
             <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
           </div>
-          <div><h1 class="text-lg font-bold tracking-tight text-white">P2P <span class="gradient-text">File Share</span></h1><p class="text-xs text-zinc-500">with manual mode</p></div>
+          <div><h1 class="text-lg font-bold tracking-tight text-white">P2P <span class="gradient-text">File Share</span></h1><p class="text-xs text-zinc-500">PC controls the mode</p></div>
         </div>
 
         <!-- Connection Status -->
@@ -47,21 +48,29 @@
           </div>
         </div>
 
-        <!-- Transfer Mode Selector -->
+        <!-- Transfer Mode Selector – modern segmented control -->
         <div class="mb-4 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800">
-          <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Transfer Mode</h3>
-          <div class="flex gap-4 text-sm">
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input type="radio" name="mode" value="webrtc" checked> Direct (WebRTC)
+          <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Transfer Mode</h3>
+          <div class="flex rounded-lg bg-zinc-800 p-1 relative" id="mode-toggle">
+            <!-- WebRTC option -->
+            <label class="flex-1 text-center py-2 px-3 rounded-md text-xs font-medium cursor-pointer transition-colors relative z-10" data-mode="webrtc">
+              <input type="radio" name="mode" value="webrtc" class="hidden peer" checked>
+              <span class="peer-checked:text-white text-zinc-400 peer-checked:bg-indigo-500/20 peer-checked:shadow-sm block py-1 px-2 rounded-md transition-all">Direct</span>
             </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input type="radio" name="mode" value="fallback"> Relay (WebSocket)
+            <!-- Fallback option -->
+            <label class="flex-1 text-center py-2 px-3 rounded-md text-xs font-medium cursor-pointer transition-colors relative z-10" data-mode="fallback">
+              <input type="radio" name="mode" value="fallback" class="hidden peer">
+              <span class="peer-checked:text-white text-zinc-400 peer-checked:bg-indigo-500/20 peer-checked:shadow-sm block py-1 px-2 rounded-md transition-all">Relay</span>
             </label>
+            <!-- Sliding background indicator (optional) -->
+            <div class="absolute inset-0 flex items-center p-1 pointer-events-none">
+              <div class="bg-indigo-500/20 rounded-md transition-all duration-200 ease-in-out h-8 w-1/2" id="mode-slider" style="transform: translateX(0%);"></div>
+            </div>
           </div>
-          <button id="switch-mode-btn" class="mt-2 w-full py-1.5 rounded bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-xs font-semibold transition-colors">Apply Mode</button>
+          <p class="text-[10px] text-zinc-500 mt-2 text-center">Mode changes apply instantly</p>
         </div>
 
-        <!-- Troubleshooting -->
+        <!-- Troubleshooting (unchanged) -->
         <div class="mt-auto pt-6 border-t border-zinc-800/50">
           <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
             <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
@@ -80,7 +89,7 @@
         </div>
       </div>
 
-      <!-- Column 2: Send Files -->
+      <!-- Column 2: Send Files (unchanged) -->
       <div class="lg:col-span-4 glass-panel rounded-2xl p-6 flex flex-col h-full">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
@@ -102,7 +111,7 @@
         </label>
       </div>
 
-      <!-- Column 3: History -->
+      <!-- Column 3: History (unchanged) -->
       <div class="lg:col-span-5 glass-panel rounded-2xl p-6 flex flex-col h-full">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
@@ -121,7 +130,7 @@
       </div>
     </div>
 
-    <!-- Mobile View – mode selector removed -->
+    <!-- Mobile View – no mode selector (unchanged) -->
     <div id="mobile-view" class="hidden w-full h-full flex flex-col gap-4 overflow-y-auto pb-6 relative z-0">
       <div class="glass-panel rounded-2xl p-5 text-center shrink-0">
         <div class="flex items-center justify-center gap-3 mb-3">
@@ -133,7 +142,6 @@
         <p id="connection-status" class="text-indigo-400 font-medium text-sm animate-pulse">Establishing direct link...</p>
       </div>
 
-      <!-- Send Files (no mode selector) -->
       <div class="glass-panel rounded-2xl p-5 shrink-0">
         <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Send Files</h3>
         <label class="flex flex-col items-center justify-center border-2 border-dashed border-zinc-700 hover:border-indigo-500/50 hover:bg-indigo-500/5 rounded-xl cursor-pointer transition-all group min-h-[120px]">
@@ -143,7 +151,6 @@
         </label>
       </div>
 
-      <!-- History -->
       <div class="glass-panel rounded-2xl p-5 flex-1 flex flex-col min-h-0">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Transfer History</h3>
