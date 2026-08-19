@@ -61,7 +61,7 @@ const isInitiator = Boolean(urlRoom);
 const currentRoom = urlRoom || Math.random().toString(36).substring(2, 9);
 
 // ---- Mode management ----
-let currentMode = "webrtc"; // default
+let currentMode = "webrtc";
 
 function getSelectedMode() {
 	for (const radio of modeRadiosPC) {
@@ -118,6 +118,7 @@ function applyMode() {
 	}
 }
 
+// ---- WebRTC initiator wrapper (phone only) ----
 function startInitiator() {
 	if (initiatorStarted || !window.RTCPeerConnection) return;
 	if (getSelectedMode() === "fallback") return;
@@ -297,12 +298,10 @@ function makeQr(roomId) {
 	}
 }
 
-// ---- Join and start (original flow) ----
 function joinAndMaybeStart() {
 	connectErrorCount = 0;
 	socket.emit("join-room", currentRoom);
 	if (isInitiator) {
-		// Phone: wait for PC mode
 		setConnectionStatus(
 			connectionStatus,
 			statusText,
@@ -310,30 +309,23 @@ function joinAndMaybeStart() {
 			"warn",
 		);
 	} else {
-		// PC: apply mode immediately (original behavior)
 		applyMode();
 	}
 }
 
-// ---- Socket events ----
 socket.on("signal", (signal) => {
 	handleSignal(signal).catch((err) =>
 		showError("Signaling error: " + err.message, errorBox),
 	);
 });
-socket.on("connect", () => {
-	console.log("Socket connected");
-	joinAndMaybeStart();
-});
+socket.on("connect", joinAndMaybeStart);
 socket.on("connect_error", (err) => {
 	connectErrorCount += 1;
 	if (connectErrorCount >= 3)
 		showError(`Signaling connection failed: ${err.message}`, errorBox);
 });
 
-// If socket is already connected, start
 if (socket.connected) joinAndMaybeStart();
-
 if (!window.RTCPeerConnection)
 	showError("WebRTC not supported. Use Relay mode.", errorBox);
 

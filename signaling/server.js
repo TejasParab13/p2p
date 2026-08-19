@@ -27,29 +27,16 @@ app.get("/health", (req, res) => {
 });
 
 io.on("connection", (socket) => {
-	console.log(`Client connected: ${socket.id}`);
-
 	socket.on("join-room", (roomId) => {
 		if (typeof roomId === "string" && roomId.trim()) {
-			const trimmed = roomId.trim();
-			socket.join(trimmed);
-			console.log(`${socket.id} joined room: ${trimmed}`);
-			// --- FIX: Send confirmation ---
-			socket.emit("room-joined", { room: trimmed });
-		} else {
-			socket.emit("error", { message: "Invalid room ID" });
+			socket.join(roomId.trim());
 		}
 	});
 
 	socket.on("signal", (data) => {
 		if (!data || typeof data.room !== "string" || !data.signal) return;
-		const room = data.room.trim();
-		console.log(`Signal from ${socket.id} in room ${room}`);
-		socket.to(room).emit("signal", data.signal);
-	});
 
-	socket.on("disconnect", () => {
-		console.log(`Client disconnected: ${socket.id}`);
+		socket.to(data.room.trim()).emit("signal", data.signal);
 	});
 });
 

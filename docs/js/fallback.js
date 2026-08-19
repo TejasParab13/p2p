@@ -69,16 +69,6 @@ export function resetFallback() {
 }
 
 export async function sendFileFallback(file) {
-	// Limit file size to prevent memory issues (50 MB)
-	const MAX_FALLBACK_SIZE = 50 * 1024 * 1024; // 50 MB
-	if (file.size > MAX_FALLBACK_SIZE) {
-		showError(
-			`File too large for Relay mode (max ${MAX_FALLBACK_SIZE / 1024 / 1024} MB). Use WebRTC mode.`,
-			errorBoxRef,
-		);
-		return;
-	}
-
 	const transferId = crypto.randomUUID();
 	transferHistory.push({
 		id: transferId,
@@ -105,22 +95,16 @@ export async function sendFileFallback(file) {
 			},
 		});
 
-		const chunkSize = 16384; // 16 KB
+		const chunkSize = 16384;
 		let offset = 0;
 		while (offset < file.size) {
 			const chunk = file.slice(offset, offset + chunkSize);
-			// Use readAsDataURL to safely get base64 without stack overflow
-			const base64 = await new Promise((resolve) => {
+			const data = await new Promise((resolve) => {
 				const reader = new FileReader();
-				reader.onload = (e) => {
-					// e.target.result is "data:...;base64,...."
-					const dataUrl = e.target.result;
-					const commaIndex = dataUrl.indexOf(",");
-					resolve(dataUrl.substring(commaIndex + 1));
-				};
-				reader.readAsDataURL(chunk);
+				reader.onload = (e) => resolve(e.target.result);
+				reader.readAsArrayBuffer(chunk);
 			});
-
+			const base64 = btoa(String.fromCharCode(...new Uint8Array(data)));
 			socketRef.emit("signal", {
 				room: currentRoomRef,
 				signal: {
@@ -130,15 +114,13 @@ export async function sendFileFallback(file) {
 					offset: offset,
 				},
 			});
-			offset += chunk.size || chunk.byteLength || 0;
+			offset += chunk.size || data.byteLength || 0;
 			const histItem = transferHistory.find((h) => h.id === transferId);
 			if (histItem) {
 				const pct = Math.round((offset / file.size) * 100);
 				histItem.progress = Math.min(pct, 99);
 				renderHistory();
 			}
-			// Small delay to avoid flooding the socket
-			await new Promise((r) => setTimeout(r, 1));
 		}
 
 		socketRef.emit("signal", {
