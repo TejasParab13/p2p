@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>P2P File Share</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <!-- Load modular JS files as ES modules -->
   <script type="module" src="js/config.js"></script>
   <script type="module" src="js/utils.js"></script>
   <script type="module" src="js/history.js"></script>
@@ -17,152 +16,162 @@
   <script type="module" src="js/main.js"></script>
 </head>
 <body>
-  <div id="error-box" class="hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-red-500/10 border border-red-500/30 text-red-200 rounded-xl px-6 py-3 text-sm font-medium shadow-2xl backdrop-blur-xl max-w-lg w-full text-center transition-all"></div>
+  <!-- Outer full‑screen container with 32px margin -->
+  <div class="outer-container">
+    <!-- Inner dark panel -->
+    <div class="inner-panel">
 
-  <main class="flex-1 p-4 lg:p-6 overflow-hidden relative">
-    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-600/5 rounded-full blur-3xl pointer-events-none"></div>
+      <div id="error-box" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500/20 border border-red-500/40 text-red-200 rounded-lg px-5 py-2.5 text-sm font-medium max-w-lg w-full text-center"></div>
 
-    <!-- PC View -->
-    <div id="pc-view" class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 relative z-0">
-      <!-- Column 1 -->
-      <div class="lg:col-span-3 glass-panel rounded-2xl p-6 flex flex-col h-full">
-        <!-- Branding -->
-        <div class="flex items-center gap-3 mb-6 pb-6 border-b border-zinc-800/50">
-          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-          </div>
-          <div><h1 class="text-lg font-bold tracking-tight text-white">P2P <span class="gradient-text">File Share</span></h1><p class="text-xs text-zinc-500">PC controls the mode</p></div>
-        </div>
+      <main class="h-full w-full overflow-hidden p-3 lg:p-4 flex items-center">
 
-        <!-- Connection Status -->
-        <div class="mb-4">
-          <h2 class="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Connection</h2>
-          <p id="status" class="text-indigo-400 font-medium mb-4 animate-pulse text-sm">Waiting for phone to scan...</p>
-          <div class="flex flex-col items-center">
-            <div id="qrcode" class="bg-white p-3 rounded-xl shadow-2xl shadow-black/50 mb-3"></div>
-            <p class="text-xs text-zinc-500 mb-3 text-center">Point your phone camera here</p>
-            <div class="flex items-center gap-2 w-full bg-zinc-950/50 p-2 rounded-lg border border-zinc-800 group focus-within:border-indigo-500/50 transition-colors">
-              <p id="room-url" class="text-xs font-mono text-zinc-400 break-all flex-1 truncate px-1"></p>
-              <button onclick="navigator.clipboard.writeText(document.getElementById('room-url').textContent)" class="shrink-0 text-xs text-indigo-400 hover:text-indigo-300 font-medium px-3 py-1.5 rounded-md hover:bg-indigo-500/10 transition-colors">Copy</button>
+        <!-- PC View -->
+        <div id="pc-view" class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
+
+          <!-- LEFT COLUMN (1/3) – Hero (transparent) + Troubleshooting -->
+          <div class="flex flex-col gap-3 lg:gap-4 h-full overflow-hidden">
+
+            <!-- Hero – Title & Description (no background) -->
+            <div class="flex-1 flex flex-col justify-center p-2">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-12 h-12 rounded-xl bg-[#2a2a2e] flex items-center justify-center shrink-0">
+                  <svg class="w-6 h-6 text-[#e0e0e0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </div>
+                <h1 class="text-2xl font-bold tracking-tight text-zinc-200">P2P <span class="text-[#b0b0b0]">Share</span></h1>
+              </div>
+              <p class="text-base text-zinc-400 leading-relaxed">Peer-to-peer file sharing. No servers, no limits. Direct and secure.</p>
+              <p class="text-sm text-zinc-500 mt-2">PC controls the mode · Works with any device</p>
+            </div>
+
+            <!-- Troubleshooting (bottom) -->
+            <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 shrink-0">
+              <h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-[#b0b0b0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                Troubleshooting
+              </h3>
+              <div class="flex flex-col gap-1.5">
+                <a href="allow-firewall.bat" download class="w-full text-center bg-[#2a2a2e] hover:bg-[#3a3a3e] text-[#d0d0d0] border border-[#3a3a3e] rounded-lg py-1.5 text-[11px] font-medium transition">Allow Firewall</a>
+                <a href="remove-firewall.bat" download class="w-full text-center bg-[#18181b] hover:bg-[#222226] text-zinc-400 border border-[#2a2a2e] rounded-lg py-1.5 text-[11px] font-medium transition">Remove Rules</a>
+              </div>
             </div>
           </div>
+
+          <!-- MIDDLE COLUMN (1/3) – Top: Info (2/3), Bottom: Upload (1/3) -->
+          <div class="flex flex-col gap-3 lg:gap-4 h-full overflow-hidden">
+
+            <!-- Info: Status, QR (centered), mode selector with labels -->
+            <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-5 flex-[2] min-h-0 overflow-hidden flex flex-col justify-center items-center">
+              <!-- Status -->
+              <p id="status" class="text-[#b0b0b0] font-medium text-base mb-4 text-center">Waiting for phone to scan...</p>
+
+              <!-- QR Code (centered) -->
+              <div id="qrcode" class="bg-white p-2 rounded-lg mb-2"></div>
+
+              <!-- Label & Copy button -->
+              <p class="text-[11px] text-zinc-500 mb-1.5 text-center">Point your phone camera here</p>
+              <div class="flex items-center gap-1.5 bg-[#121214] p-2 rounded-lg border border-[#2a2a2e] w-full max-w-[220px]">
+                <p id="room-url" class="text-xs font-mono text-zinc-400 truncate flex-1 px-1"></p>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('room-url').textContent)" class="shrink-0 text-xs text-[#b0b0b0] hover:text-[#d0d0d0] font-medium px-3 py-1.5 rounded hover:bg-[#2a2a2e]/30 transition">Copy</button>
+              </div>
+
+              <!-- Transfer Mode label + pill selector -->
+              <div class="mt-5 w-full max-w-xs">
+                <h3 class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2 text-center">Transfer Mode</h3>
+                <div class="flex rounded-full bg-[#1a1a1a] p-1 border border-[#2a2a2e] w-full" id="mode-toggle">
+                  <label class="flex-1 text-center py-2 px-4 rounded-full text-sm font-medium cursor-pointer transition-colors" data-mode="webrtc">
+                    <input type="radio" name="mode" value="webrtc" class="hidden peer" checked />
+                    <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 block py-1 px-2 rounded-full transition-all">Direct</span>
+                  </label>
+                  <label class="flex-1 text-center py-2 px-4 rounded-full text-sm font-medium cursor-pointer transition-colors" data-mode="fallback">
+                    <input type="radio" name="mode" value="fallback" class="hidden peer" />
+                    <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 block py-1 px-2 rounded-full transition-all">Relay</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Send Files (1 part) -->
+            <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex-[1] min-h-0 overflow-hidden flex flex-col">
+              <div class="flex items-center justify-between mb-2">
+                <h2 class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                  <svg class="w-4 h-4 text-[#b0b0b0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                  Send Files
+                </h2>
+                <span class="text-[9px] bg-[#222226] text-zinc-400 px-2 py-0.5 rounded border border-[#2a2a2e]">Multiple</span>
+              </div>
+              <label id="drop-zone" class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-[#2a2a2e] hover:border-[#5a5a5e] hover:bg-[#1a1a1e] rounded-xl cursor-pointer transition-all group min-h-[60px]">
+                <input type="file" id="file-input-pc" class="hidden" multiple />
+                <div class="text-center p-3">
+                  <div class="w-12 h-12 rounded-xl bg-[#121214] group-hover:bg-[#1e1e22] flex items-center justify-center mx-auto mb-2 transition">
+                    <svg class="w-6 h-6 text-zinc-500 group-hover:text-[#b0b0b0] transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  </div>
+                  <span class="text-sm font-medium text-zinc-200 group-hover:text-white block">Click or drag</span>
+                  <span class="text-[10px] text-zinc-500">Files & folders</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- RIGHT COLUMN (1/3) – Heading outside card, then card with history -->
+          <div class="flex flex-col gap-2 h-full overflow-hidden">
+            <!-- Heading: "Transfers" outside the card -->
+            <div class="flex items-center justify-between px-1">
+              <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider">Transfers</h2>
+              <button onclick="clearHistory()" class="text-[10px] text-zinc-500 hover:text-red-400 transition">Clear All</button>
+            </div>
+
+            <!-- History card -->
+            <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div id="history-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                <div id="history-empty" class="h-full flex flex-col items-center justify-center text-zinc-600">
+                  <svg class="w-10 h-10 mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  <p class="text-sm font-medium">No files transferred yet</p>
+                  <p class="text-[10px] mt-0.5">Sent and received files appear here</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
-        <!-- Transfer Mode Selector – modern segmented control -->
-        <div class="mb-4 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800">
-          <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Transfer Mode</h3>
-          <div class="flex rounded-lg bg-zinc-800 p-1 relative" id="mode-toggle">
-            <!-- WebRTC option -->
-            <label class="flex-1 text-center py-2 px-3 rounded-md text-xs font-medium cursor-pointer transition-colors relative z-10" data-mode="webrtc">
-              <input type="radio" name="mode" value="webrtc" class="hidden peer" checked>
-              <span class="peer-checked:text-white text-zinc-400 peer-checked:bg-indigo-500/20 peer-checked:shadow-sm block py-1 px-2 rounded-md transition-all">Direct</span>
+        <!-- Mobile View (unchanged) -->
+        <div id="mobile-view" class="hidden w-full h-full flex flex-col gap-3 overflow-y-auto pb-3">
+          <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 text-center shrink-0">
+            <div class="flex items-center justify-center gap-2 mb-2">
+              <div class="w-7 h-7 rounded-lg bg-[#2a2a2e] flex items-center justify-center">
+                <svg class="w-4 h-4 text-[#e0e0e0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              </div>
+              <h1 class="text-base font-semibold text-zinc-200">P2P <span class="text-[#b0b0b0]">Share</span></h1>
+            </div>
+            <p id="connection-status" class="text-[#b0b0b0] font-medium text-sm">Establishing link...</p>
+          </div>
+
+          <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 shrink-0">
+            <h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Send Files</h3>
+            <label class="flex flex-col items-center justify-center border-2 border-dashed border-[#2a2a2e] hover:border-[#5a5a5e] hover:bg-[#1a1a1e] rounded-xl cursor-pointer transition min-h-[90px]">
+              <input type="file" id="file-input-mobile" class="hidden" multiple />
+              <svg class="w-7 h-7 text-zinc-500 group-hover:text-[#b0b0b0] mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+              <span class="text-sm font-medium text-zinc-300">Tap to select</span>
             </label>
-            <!-- Fallback option -->
-            <label class="flex-1 text-center py-2 px-3 rounded-md text-xs font-medium cursor-pointer transition-colors relative z-10" data-mode="fallback">
-              <input type="radio" name="mode" value="fallback" class="hidden peer">
-              <span class="peer-checked:text-white text-zinc-400 peer-checked:bg-indigo-500/20 peer-checked:shadow-sm block py-1 px-2 rounded-md transition-all">Relay</span>
-            </label>
-            <!-- Sliding background indicator (optional) -->
-            <div class="absolute inset-0 flex items-center p-1 pointer-events-none">
-              <div class="bg-indigo-500/20 rounded-md transition-all duration-200 ease-in-out h-8 w-1/2" id="mode-slider" style="transform: translateX(0%);"></div>
+          </div>
+
+          <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex-1 flex flex-col min-h-0">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">History</h3>
+              <button onclick="clearHistory()" class="text-[9px] text-zinc-500 hover:text-red-400">Clear</button>
+            </div>
+            <div id="history-list-mobile" class="flex-1 overflow-y-auto space-y-1.5">
+              <div id="history-empty-mobile" class="h-full flex flex-col items-center justify-center text-zinc-600 py-4">
+                <p class="text-sm font-medium">No files yet</p>
+              </div>
             </div>
           </div>
-          <p class="text-[10px] text-zinc-500 mt-2 text-center">Mode changes apply instantly</p>
         </div>
+      </main>
 
-        <!-- Troubleshooting (unchanged) -->
-        <div class="mt-auto pt-6 border-t border-zinc-800/50">
-          <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            Troubleshooting
-          </h3>
-          <div class="flex flex-col gap-2">
-            <a href="allow-firewall.bat" download class="flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg py-2 px-3 text-xs font-semibold transition-all group">
-              <svg class="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-              Allow Firewall Rules
-            </a>
-            <a href="remove-firewall.bat" download class="flex items-center justify-center gap-2 bg-zinc-800/50 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 rounded-lg py-2 px-3 text-xs font-semibold transition-all">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-              Remove Rules
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <!-- Column 2: Send Files (unchanged) -->
-      <div class="lg:col-span-4 glass-panel rounded-2xl p-6 flex flex-col h-full">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-            Send Files
-          </h2>
-          <span class="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-1 rounded-full border border-zinc-700">Multiple</span>
-        </div>
-        <label id="drop-zone" class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-zinc-700 hover:border-indigo-500/50 hover:bg-indigo-500/5 rounded-xl cursor-pointer transition-all group min-h-[200px] relative overflow-hidden">
-          <input type="file" id="file-input-pc" class="hidden" multiple />
-          <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/0 to-violet-500/0 group-hover:from-indigo-500/5 group-hover:to-violet-500/5 transition-all duration-500"></div>
-          <div class="relative z-10 text-center p-6">
-            <div class="w-16 h-16 rounded-2xl bg-zinc-800 group-hover:bg-indigo-500/20 flex items-center justify-center mx-auto mb-4 transition-colors duration-300">
-              <svg class="w-8 h-8 text-zinc-500 group-hover:text-indigo-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            </div>
-            <span class="text-base font-medium text-zinc-200 group-hover:text-white block mb-1">Click or drag files here</span>
-            <span class="text-xs text-zinc-500">Supports multiple files & folders</span>
-          </div>
-        </label>
-      </div>
-
-      <!-- Column 3: History (unchanged) -->
-      <div class="lg:col-span-5 glass-panel rounded-2xl p-6 flex flex-col h-full">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-            Transfer History
-          </h2>
-          <button onclick="clearHistory()" class="text-xs text-zinc-500 hover:text-red-400 transition-colors">Clear All</button>
-        </div>
-        <div id="history-list" class="flex-1 overflow-y-auto space-y-2 pr-2">
-          <div id="history-empty" class="h-full flex flex-col items-center justify-center text-zinc-600">
-            <svg class="w-12 h-12 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            <p class="text-sm font-medium">No files transferred yet</p>
-            <p class="text-xs mt-1">Sent and received files will appear here</p>
-          </div>
-        </div>
-      </div>
     </div>
-
-    <!-- Mobile View – no mode selector (unchanged) -->
-    <div id="mobile-view" class="hidden w-full h-full flex flex-col gap-4 overflow-y-auto pb-6 relative z-0">
-      <div class="glass-panel rounded-2xl p-5 text-center shrink-0">
-        <div class="flex items-center justify-center gap-3 mb-3">
-          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-          </div>
-          <h1 class="text-lg font-bold tracking-tight text-white">P2P <span class="gradient-text">File Share</span></h1>
-        </div>
-        <p id="connection-status" class="text-indigo-400 font-medium text-sm animate-pulse">Establishing direct link...</p>
-      </div>
-
-      <div class="glass-panel rounded-2xl p-5 shrink-0">
-        <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Send Files</h3>
-        <label class="flex flex-col items-center justify-center border-2 border-dashed border-zinc-700 hover:border-indigo-500/50 hover:bg-indigo-500/5 rounded-xl cursor-pointer transition-all group min-h-[120px]">
-          <input type="file" id="file-input-mobile" class="hidden" multiple />
-          <svg class="w-8 h-8 text-zinc-500 group-hover:text-indigo-400 mb-2 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-          <span class="text-sm font-medium text-zinc-300 group-hover:text-white">Tap to select files</span>
-        </label>
-      </div>
-
-      <div class="glass-panel rounded-2xl p-5 flex-1 flex flex-col min-h-0">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Transfer History</h3>
-          <button onclick="clearHistory()" class="text-[10px] text-zinc-500 hover:text-red-400 transition-colors">Clear</button>
-        </div>
-        <div id="history-list-mobile" class="flex-1 overflow-y-auto space-y-2 pr-1">
-          <div id="history-empty-mobile" class="h-full flex flex-col items-center justify-center text-zinc-600 py-8">
-            <p class="text-sm font-medium">No files transferred yet</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </main>
+    <!-- End of inner panel -->
+  </div>
+  <!-- End of outer container -->
 </body>
 </html>
