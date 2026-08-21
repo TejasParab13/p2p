@@ -2,6 +2,12 @@ import { formatBytes, formatTime, getFileIcon } from "./utils.js";
 
 export let transferHistory = [];
 export let historyListPC, historyListMobile, historyEmptyPC, historyEmptyMobile;
+export let currentFilter = "all"; // "all" | "sent" | "received"
+
+export function setFilter(filter) {
+	currentFilter = filter;
+	renderHistory();
+}
 
 export function initHistory(domRefs) {
 	historyListPC = domRefs.historyListPC;
@@ -11,10 +17,19 @@ export function initHistory(domRefs) {
 }
 
 export function renderHistory() {
-	const isEmpty = transferHistory.length === 0;
+	const items = transferHistory.slice(-20).reverse();
+	let filteredItems = items;
+
+	if (currentFilter === "sent") {
+		filteredItems = items.filter((item) => item.direction === "sent");
+	} else if (currentFilter === "received") {
+		filteredItems = items.filter((item) => item.direction === "received");
+	}
+
+	const isEmpty = filteredItems.length === 0;
 	historyEmptyPC.classList.toggle("hidden", !isEmpty);
 	historyEmptyMobile.classList.toggle("hidden", !isEmpty);
-	const itemsToRender = transferHistory.slice(-20).reverse();
+
 	const generateHTML = (item) => {
 		const isReceived = item.direction === "received";
 		const statusIcon =
@@ -52,11 +67,17 @@ export function renderHistory() {
       </div>
     `;
 	};
-	const html = itemsToRender.map(generateHTML).join("");
+
+	const html = filteredItems.map(generateHTML).join("");
+	const emptyHTML = `<div class="h-full flex flex-col items-center justify-center text-zinc-600">
+      <svg class="w-10 h-10 mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <p class="text-sm font-medium">${isEmpty ? "No files transferred yet" : "No matching files"}</p>
+      ${isEmpty ? '<p class="text-[10px] mt-0.5">Sent and received files appear here</p>' : ""}
+    </div>`;
 	historyListPC.innerHTML =
-		(isEmpty ? "" : html) + (isEmpty ? historyEmptyPC.outerHTML : "");
+		(isEmpty ? "" : html) + (isEmpty ? emptyHTML : "");
 	historyListMobile.innerHTML =
-		(isEmpty ? "" : html) + (isEmpty ? historyEmptyMobile.outerHTML : "");
+		(isEmpty ? "" : html) + (isEmpty ? emptyHTML : "");
 }
 
 export function clearHistory() {

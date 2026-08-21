@@ -5,6 +5,7 @@ import {
 	renderHistory,
 	clearHistory,
 	initHistory,
+	setFilter, // added
 } from "./history.js";
 import {
 	webrtcState,
@@ -39,6 +40,9 @@ const historyListMobile = document.getElementById("history-list-mobile");
 const historyEmptyPC = document.getElementById("history-empty");
 const historyEmptyMobile = document.getElementById("history-empty-mobile");
 const modeRadiosPC = document.querySelectorAll('input[name="mode"]');
+const roomCodeDisplay = document.getElementById("room-code-display");
+const roomCodeInput = document.getElementById("room-code-input");
+const filterRadios = document.querySelectorAll('input[name="filter"]');
 
 // ---- Init history module ----
 initHistory({
@@ -59,6 +63,32 @@ const urlRoom = (params.get("room") || "").trim();
 const isInitiator = Boolean(urlRoom);
 const currentRoom = urlRoom || Math.random().toString(36).substring(2, 9);
 
+// ---- Display room code ----
+if (roomCodeDisplay) {
+	roomCodeDisplay.textContent = currentRoom;
+}
+
+// ---- Join room function ----
+window.joinRoom = function () {
+	const code = roomCodeInput.value.trim();
+	if (!code) {
+		showError("Please enter a room code", errorBox);
+		return;
+	}
+	const url = new URL(window.location.href);
+	url.search = `?room=${code}`;
+	window.location.href = url.toString();
+};
+
+// ---- Filter radio listeners ----
+filterRadios.forEach((radio) => {
+	radio.addEventListener("change", () => {
+		if (radio.checked) {
+			setFilter(radio.value);
+		}
+	});
+});
+
 // ---- Mode management ----
 let currentMode = "webrtc";
 
@@ -73,15 +103,10 @@ function setModeFromSignal(mode) {
 	if (mode !== "webrtc" && mode !== "fallback") return;
 	console.log("Mode changed via signal:", mode);
 	currentMode = mode;
-	// Update PC radio to match (if on PC)
 	for (const radio of modeRadiosPC) {
 		radio.checked = radio.value === mode;
 	}
 	applyMode();
-}
-
-function syncRadios() {
-	// no-op, handled by change event
 }
 
 function applyMode() {
@@ -309,7 +334,6 @@ function joinAndMaybeStart() {
 			"warn",
 		);
 	} else {
-		// PC: apply mode (uses the currently selected radio)
 		applyMode();
 	}
 }
@@ -400,7 +424,6 @@ if (dropZone && fileInputPC) {
 // ---- Mode change: auto-apply when radio changes ----
 for (const radio of modeRadiosPC) {
 	radio.addEventListener("change", () => {
-		// Update the sliding indicator (optional)
 		const slider = document.getElementById("mode-slider");
 		if (slider) {
 			const selected = document.querySelector(
@@ -425,7 +448,6 @@ for (const radio of modeRadiosPC) {
 }
 
 // ---- Initial sync of slider ----
-// After page load, set slider position based on default checked
 window.addEventListener("load", () => {
 	const slider = document.getElementById("mode-slider");
 	if (slider) {
@@ -442,6 +464,7 @@ window.addEventListener("load", () => {
 			slider.style.transform = `translateX(${index * 100}%)`;
 		}
 	}
+	applyMode();
 });
 
 // ---- Expose clearHistory to global ----

@@ -1,0 +1,7 @@
+mode not sellected on start
+
+item tile time style
+
+room code not getting displayed
+
+add the logic to new UI
