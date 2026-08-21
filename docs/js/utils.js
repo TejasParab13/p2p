@@ -11,10 +11,19 @@ export function formatBytes(bytes, decimals = 1) {
 export function formatTime(date) {
 	const now = new Date();
 	const diff = Math.floor((now - date) / 1000);
-	if (diff < 60) return "Just now";
-	if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-	if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-	return date.toLocaleDateString();
+	// Show time for today, full date+time for older
+	if (diff < 86400 && date.getDate() === now.getDate()) {
+		return date.toLocaleTimeString([], {
+			hour: "2-digit",
+			minute: "2-digit",
+		});
+	}
+	return date.toLocaleString([], {
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
 }
 
 export function getFileIcon(type, name) {
