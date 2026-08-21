@@ -1,7 +1,7 @@
 import { RTC_CONFIG } from "./config.js";
 import { setConnectionStatus, showError } from "./utils.js";
 import { transferHistory, renderHistory } from "./history.js";
-import { fallbackState } from "./fallback.js"; // import fallbackState
+import { fallbackState } from "./fallback.js";
 
 // Mutable state object – exported so main.js can modify it
 export const webrtcState = {
@@ -20,6 +20,8 @@ let isInitiatorRef = false;
 let errorBoxRef = null;
 let connectionStatusRef = null;
 let statusTextRef = null;
+
+export let isSwitchingToRelay = false; // flag to suppress "Data channel closed" when switching
 
 export function initWebRTC(
 	socket,
@@ -223,8 +225,8 @@ export function setupDataChannel(channel, processSendQueueCallback) {
 		processSendQueueCallback();
 	};
 	channel.onclose = () => {
-		// Only show closed if we are not in fallback mode
-		if (!fallbackState.active) {
+		// Only show closed if we are not in fallback mode AND not switching to relay
+		if (!fallbackState.active && !isSwitchingToRelay) {
 			setConnectionStatus(
 				connectionStatusRef,
 				statusTextRef,
@@ -232,6 +234,8 @@ export function setupDataChannel(channel, processSendQueueCallback) {
 				"bad",
 			);
 		}
+		// Reset the flag after handling
+		isSwitchingToRelay = false;
 	};
 	channel.onerror = (err) => {
 		console.error("Data channel error:", err);

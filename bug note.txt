@@ -1,7 +1,15 @@
-mode not sellected on start
+mode not sellected on start - done
 
-item tile time style
+item tile time style - done
 
-room code not getting displayed
+room code not getting displayed - done
 
-add the logic to new UI
+add the logic to new UI - done
+
+the gray icon works when downloading on phone, but it is not same when downloading on historyListPC
+and on pc the download icon say redownload when i have not downloaded it yet
+
+problem with status message(connect via, etc) on pc, phone work correct
+when i have scaned the Qr and like connected the two devices, the direct mode status message is working correct
+but when im connect the two devices and when i switch to relay mode it says "Data channel closed."
+when i have not connected the two devices (new room) and i switch to relay mode, it says "Connected via Relay"

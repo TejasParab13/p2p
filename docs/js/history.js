@@ -3,6 +3,7 @@ import { formatBytes, formatTime, getFileIcon } from "./utils.js";
 export let transferHistory = [];
 export let historyListPC, historyListMobile, historyEmptyPC, historyEmptyMobile;
 export let currentFilter = "all"; // "all" | "sent" | "received"
+export const downloadedSet = new Set(); // track downloaded items by id
 
 export function setFilter(filter) {
 	currentFilter = filter;
@@ -14,6 +15,12 @@ export function initHistory(domRefs) {
 	historyListMobile = domRefs.historyListMobile;
 	historyEmptyPC = domRefs.historyEmptyPC;
 	historyEmptyMobile = domRefs.historyEmptyMobile;
+}
+
+// Mark item as downloaded and re-render
+export function markDownloaded(id) {
+	downloadedSet.add(id);
+	renderHistory();
 }
 
 export function renderHistory() {
@@ -44,7 +51,7 @@ export function renderHistory() {
 
 		let actionButton;
 		if (isReceived && item.status === "completed" && item.objectUrl) {
-			const isDownloaded = item.downloaded || false;
+			const isDownloaded = downloadedSet.has(item.id);
 			const iconHtml = isDownloaded ? grayDownloadIcon : downloadIcon;
 			const title = isDownloaded ? "Download again" : "Download";
 			const extraClass = isDownloaded
@@ -54,7 +61,8 @@ export function renderHistory() {
 				<a href="${item.objectUrl}" download="${item.name}" 
 				   class="shrink-0 ml-3 p-2 rounded-lg bg-zinc-800 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 transition-colors download-btn ${extraClass}" 
 				   title="${title}"
-				   data-id="${item.id}">
+				   data-id="${item.id}"
+				   onclick="window.markDownloaded('${item.id}')">
 				   ${iconHtml}
 				</a>
 			`;
@@ -96,18 +104,6 @@ export function renderHistory() {
 		(isEmpty ? "" : html) + (isEmpty ? emptyHTML : "");
 	historyListMobile.innerHTML =
 		(isEmpty ? "" : html) + (isEmpty ? emptyHTML : "");
-
-	// Attach click handlers to mark as downloaded
-	document.querySelectorAll(".download-btn").forEach((btn) => {
-		btn.addEventListener("click", function (e) {
-			const id = this.dataset.id;
-			const item = transferHistory.find((h) => h.id === id);
-			if (item) {
-				item.downloaded = true;
-				renderHistory();
-			}
-		});
-	});
 }
 
 export function clearHistory() {
@@ -115,5 +111,9 @@ export function clearHistory() {
 		if (item.objectUrl) URL.revokeObjectURL(item.objectUrl);
 	});
 	transferHistory = [];
+	downloadedSet.clear();
 	renderHistory();
 }
+
+// Expose markDownloaded globally for onclick
+window.markDownloaded = markDownloaded;

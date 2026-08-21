@@ -5,7 +5,7 @@ import {
 	renderHistory,
 	clearHistory,
 	initHistory,
-	setFilter, // added
+	setFilter,
 } from "./history.js";
 import {
 	webrtcState,
@@ -15,6 +15,7 @@ import {
 	createPeerConnection,
 	flushPendingCandidates,
 	resetWebRTC,
+	isSwitchingToRelay, // imported to set flag before switching
 } from "./webrtc.js";
 import {
 	fallbackState,
@@ -112,6 +113,15 @@ function setModeFromSignal(mode) {
 function applyMode() {
 	const mode = getSelectedMode();
 	console.log("Applying mode:", mode);
+
+	// If switching to fallback from an active direct connection, set flag to suppress "Data channel closed"
+	if (
+		mode === "fallback" &&
+		webrtcState.dataChannel &&
+		webrtcState.dataChannel.readyState === "open"
+	) {
+		isSwitchingToRelay = true;
+	}
 
 	resetWebRTC();
 	resetFallback();
