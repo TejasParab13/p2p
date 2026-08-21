@@ -16,111 +16,102 @@
   <script type="module" src="js/main.js"></script>
 </head>
 <body>
-  <!-- Outer full‑screen container with 32px margin -->
   <div class="outer-container">
-    <!-- Inner dark panel -->
     <div class="inner-panel">
 
       <div id="error-box" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500/20 border border-red-500/40 text-red-200 rounded-lg px-5 py-2.5 text-sm font-medium max-w-lg w-full text-center"></div>
 
       <main class="h-full w-full overflow-hidden p-3 lg:p-4 flex items-center">
 
-        <!-- PC View -->
         <div id="pc-view" class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-3 gap-3 lg:gap-4">
 
-          <!-- LEFT COLUMN (1/3) – Hero (transparent) + Troubleshooting -->
-          <div class="flex flex-col gap-3 lg:gap-4 h-full overflow-hidden">
+          <!-- LEFT+MIDDLE COMBINED (2/3) -->
+          <div class="lg:col-span-2 flex flex-col gap-3 lg:gap-4 h-full overflow-hidden">
 
-            <!-- Hero – Title & Description (no background) -->
-            <div class="flex-1 flex flex-col justify-center p-2">
-              <div class="flex items-center gap-3 mb-3">
-                <div class="w-12 h-12 rounded-xl bg-[#2a2a2e] flex items-center justify-center shrink-0">
-                  <svg class="w-6 h-6 text-[#e0e0e0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                </div>
-                <h1 class="text-2xl font-bold tracking-tight text-zinc-200">P2P <span class="text-[#b0b0b0]">Share</span></h1>
-              </div>
-              <p class="text-base text-zinc-400 leading-relaxed">Peer-to-peer file sharing. No servers, no limits. Direct and secure.</p>
-              <p class="text-sm text-zinc-500 mt-2">PC controls the mode · Works with any device</p>
+            <!-- Title – white pill -->
+            <div class="shrink-0 bg-white rounded-full px-4 py-2 flex items-center gap-2 shadow-sm w-fit">
+              <svg class="w-5 h-5 text-[#1a1a1a]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              <h1 class="text-lg font-bold tracking-tight text-[#1a1a1a]">P2P <span class="text-[#555]">Share</span></h1>
             </div>
 
-            <!-- Troubleshooting (bottom) -->
-            <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 shrink-0">
-              <h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5 text-[#b0b0b0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                Troubleshooting
-              </h3>
-              <div class="flex flex-col gap-1.5">
-                <a href="allow-firewall.bat" download class="w-full text-center bg-[#2a2a2e] hover:bg-[#3a3a3e] text-[#d0d0d0] border border-[#3a3a3e] rounded-lg py-1.5 text-[11px] font-medium transition">Allow Firewall</a>
-                <a href="remove-firewall.bat" download class="w-full text-center bg-[#18181b] hover:bg-[#222226] text-zinc-400 border border-[#2a2a2e] rounded-lg py-1.5 text-[11px] font-medium transition">Remove Rules</a>
-              </div>
-            </div>
-          </div>
-
-          <!-- MIDDLE COLUMN (1/3) – Top: Info (2/3), Bottom: Upload (1/3) -->
-          <div class="flex flex-col gap-3 lg:gap-4 h-full overflow-hidden">
-
-            <!-- Info: Status, QR (centered), mode selector with labels -->
-            <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-5 flex-[2] min-h-0 overflow-hidden flex flex-col justify-center items-center">
-              <!-- Status -->
-              <p id="status" class="text-[#b0b0b0] font-medium text-base mb-4 text-center">Waiting for phone to scan...</p>
-
-              <!-- QR Code (centered) -->
-              <div id="qrcode" class="bg-white p-2 rounded-lg mb-2"></div>
-
-              <!-- Label & Copy button -->
-              <p class="text-[11px] text-zinc-500 mb-1.5 text-center">Point your phone camera here</p>
-              <div class="flex items-center gap-1.5 bg-[#121214] p-2 rounded-lg border border-[#2a2a2e] w-full max-w-[220px]">
-                <p id="room-url" class="text-xs font-mono text-zinc-400 truncate flex-1 px-1"></p>
-                <button onclick="navigator.clipboard.writeText(document.getElementById('room-url').textContent)" class="shrink-0 text-xs text-[#b0b0b0] hover:text-[#d0d0d0] font-medium px-3 py-1.5 rounded hover:bg-[#2a2a2e]/30 transition">Copy</button>
-              </div>
-
-              <!-- Transfer Mode label + pill selector -->
-              <div class="mt-5 w-full max-w-xs">
-                <h3 class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2 text-center">Transfer Mode</h3>
-                <div class="flex rounded-full bg-[#1a1a1a] p-1 border border-[#2a2a2e] w-full" id="mode-toggle">
-                  <label class="flex-1 text-center py-2 px-4 rounded-full text-sm font-medium cursor-pointer transition-colors" data-mode="webrtc">
-                    <input type="radio" name="mode" value="webrtc" class="hidden peer" checked />
-                    <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 block py-1 px-2 rounded-full transition-all">Direct</span>
-                  </label>
-                  <label class="flex-1 text-center py-2 px-4 rounded-full text-sm font-medium cursor-pointer transition-colors" data-mode="fallback">
-                    <input type="radio" name="mode" value="fallback" class="hidden peer" />
-                    <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 block py-1 px-2 rounded-full transition-all">Relay</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <!-- Send Files (1 part) -->
-            <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex-[1] min-h-0 overflow-hidden flex flex-col">
-              <div class="flex items-center justify-between mb-2">
-                <h2 class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-                  <svg class="w-4 h-4 text-[#b0b0b0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                  Send Files
-                </h2>
-                <span class="text-[9px] bg-[#222226] text-zinc-400 px-2 py-0.5 rounded border border-[#2a2a2e]">Multiple</span>
-              </div>
-              <label id="drop-zone" class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-[#2a2a2e] hover:border-[#5a5a5e] hover:bg-[#1a1a1e] rounded-xl cursor-pointer transition-all group min-h-[60px]">
-                <input type="file" id="file-input-pc" class="hidden" multiple />
-                <div class="text-center p-3">
-                  <div class="w-12 h-12 rounded-xl bg-[#121214] group-hover:bg-[#1e1e22] flex items-center justify-center mx-auto mb-2 transition">
-                    <svg class="w-6 h-6 text-zinc-500 group-hover:text-[#b0b0b0] transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <!-- 1:1 split: Info (flex-1) and Row (flex-1) -->
+            <div class="flex-1 flex flex-col gap-3 lg:gap-4 min-h-0">
+              <!-- Info section – horizontal layout -->
+              <div class="flex-1 bg-[#18181b] border border-[#2a2a2e] rounded-xl p-5 overflow-hidden flex flex-col">
+                <!-- Status – full width -->
+                <p id="status" class="text-[#b0b0b0] font-medium text-base text-center shrink-0">Waiting for phone to scan...</p>
+                <!-- Main row: left (QR) and right (Mode) -->
+                <div class="flex-1 flex flex-row items-center justify-around gap-4 min-h-0">
+                  <!-- Left: QR + label + copy -->
+                  <div class="flex flex-col items-center justify-center flex-1">
+                    <div id="qrcode" class="bg-white p-2 rounded-lg mb-2"></div>
+                    <p class="text-[11px] text-zinc-500 mb-1.5 text-center">Point your phone camera here</p>
+                    <div class="flex items-center gap-1.5 bg-[#121214] p-2 rounded-lg border border-[#2a2a2e] w-full max-w-[200px]">
+                      <p id="room-url" class="text-xs font-mono text-zinc-400 truncate flex-1 px-1"></p>
+                      <button onclick="navigator.clipboard.writeText(document.getElementById('room-url').textContent)" class="shrink-0 text-xs text-[#b0b0b0] hover:text-[#d0d0d0] font-medium px-3 py-1.5 rounded hover:bg-[#2a2a2e]/30 transition">Copy</button>
+                    </div>
                   </div>
-                  <span class="text-sm font-medium text-zinc-200 group-hover:text-white block">Click or drag</span>
-                  <span class="text-[10px] text-zinc-500">Files & folders</span>
+                  <!-- Right: Transfer Mode -->
+                  <div class="flex flex-col items-center justify-center flex-1">
+                    <h3 class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2 text-center">Transfer Mode</h3>
+                    <div class="flex rounded-full bg-[#1a1a1a] p-1 border border-[#2a2a2e] w-full max-w-[220px]" id="mode-toggle">
+                      <label class="flex-1 text-center py-2 px-4 rounded-full text-sm font-medium cursor-pointer transition-colors" data-mode="webrtc">
+                        <input type="radio" name="mode" value="webrtc" class="hidden peer" checked />
+                        <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 block py-1 px-2 rounded-full transition-all">Direct</span>
+                      </label>
+                      <label class="flex-1 text-center py-2 px-4 rounded-full text-sm font-medium cursor-pointer transition-colors" data-mode="fallback">
+                        <input type="radio" name="mode" value="fallback" class="hidden peer" />
+                        <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 block py-1 px-2 rounded-full transition-all">Relay</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
-              </label>
+              </div>
+
+              <!-- Row: Troubleshooting (2) + Send Files (3) -->
+              <div class="flex-1 flex gap-3 lg:gap-4 min-h-0">
+                <!-- Troubleshooting – 2 parts -->
+                <div class="flex-[2] bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex flex-col justify-center min-h-0 overflow-hidden">
+                  <h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-[#b0b0b0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    Troubleshooting
+                  </h3>
+                  <div class="flex flex-col gap-1.5">
+                    <a href="allow-firewall.bat" download class="w-full text-center bg-[#2a2a2e] hover:bg-[#3a3a3e] text-[#d0d0d0] border border-[#3a3a3e] rounded-lg py-1.5 text-[11px] font-medium transition">Allow Firewall</a>
+                    <a href="remove-firewall.bat" download class="w-full text-center bg-[#18181b] hover:bg-[#222226] text-zinc-400 border border-[#2a2a2e] rounded-lg py-1.5 text-[11px] font-medium transition">Remove Rules</a>
+                  </div>
+                </div>
+
+                <!-- Send Files – 3 parts -->
+                <div class="flex-[3] bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex flex-col min-h-0 overflow-hidden">
+                  <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                      <svg class="w-4 h-4 text-[#b0b0b0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                      Send Files
+                    </h2>
+                    <span class="text-[9px] bg-[#222226] text-zinc-400 px-2 py-0.5 rounded border border-[#2a2a2e]">Multiple</span>
+                  </div>
+                  <label id="drop-zone" class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-[#2a2a2e] hover:border-[#5a5a5e] hover:bg-[#1a1a1e] rounded-xl cursor-pointer transition-all group min-h-[60px]">
+                    <input type="file" id="file-input-pc" class="hidden" multiple />
+                    <div class="text-center p-2">
+                      <div class="w-12 h-12 rounded-xl bg-[#121214] group-hover:bg-[#1e1e22] flex items-center justify-center mx-auto mb-1.5 transition">
+                        <svg class="w-6 h-6 text-zinc-500 group-hover:text-[#b0b0b0] transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                      </div>
+                      <span class="text-sm font-medium text-zinc-200 group-hover:text-white block">Click or drag</span>
+                      <span class="text-[10px] text-zinc-500">Files & folders</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- RIGHT COLUMN (1/3) – Heading outside card, then card with history -->
+          <!-- RIGHT COLUMN (1/3) – Transfers -->
           <div class="flex flex-col gap-2 h-full overflow-hidden">
-            <!-- Heading: "Transfers" outside the card -->
             <div class="flex items-center justify-between px-1">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider">Transfers</h2>
               <button onclick="clearHistory()" class="text-[10px] text-zinc-500 hover:text-red-400 transition">Clear All</button>
             </div>
-
-            <!-- History card -->
             <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex-1 flex flex-col min-h-0 overflow-hidden">
               <div id="history-list" class="flex-1 overflow-y-auto space-y-1.5 pr-1">
                 <div id="history-empty" class="h-full flex flex-col items-center justify-center text-zinc-600">
@@ -168,10 +159,7 @@
           </div>
         </div>
       </main>
-
     </div>
-    <!-- End of inner panel -->
   </div>
-  <!-- End of outer container -->
 </body>
 </html>
