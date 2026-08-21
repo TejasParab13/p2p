@@ -1,7 +1,7 @@
 import { transferHistory, renderHistory } from "./history.js";
 import { setConnectionStatus, showError } from "./utils.js";
 
-// Mutable state object – exported so main.js can modify it
+// Mutable state object
 export const fallbackState = {
 	active: false,
 	receiveBuffer: [],
@@ -9,6 +9,7 @@ export const fallbackState = {
 	receivedSize: 0,
 	complete: false,
 	objectUrl: null,
+	peerConnected: false, // track if we have received any signal from the other side
 };
 
 // These will be set from main
@@ -41,17 +42,22 @@ export function activateFallback() {
 		return;
 	}
 	fallbackState.active = true;
+	fallbackState.peerConnected = false; // reset peer flag
 	console.log("Fallback activated");
-	setConnectionStatus(
-		connectionStatusRef,
-		statusTextRef,
-		"Connected via Relay", // changed from "Using WebSocket fallback (reliable)"
-		"good",
-	);
-	showError(
-		"Using Relay mode – all data goes through signaling server.",
-		errorBoxRef,
-	);
+
+	// Only set status to "Connected via Relay" if we have already seen a peer
+	// Otherwise, leave current status (e.g., "Waiting for phone...") unchanged.
+	// We'll update to "Connected via Relay" when we receive a signal from the peer.
+	if (fallbackState.peerConnected) {
+		setConnectionStatus(
+			connectionStatusRef,
+			statusTextRef,
+			"Connected via Relay",
+			"good",
+		);
+	}
+	// Toast removed – no showError call
+
 	if (processSendQueueCallback) processSendQueueCallback();
 }
 
@@ -61,6 +67,7 @@ export function resetFallback() {
 	fallbackState.meta = null;
 	fallbackState.receivedSize = 0;
 	fallbackState.complete = false;
+	fallbackState.peerConnected = false;
 	if (fallbackState.objectUrl) {
 		URL.revokeObjectURL(fallbackState.objectUrl);
 		fallbackState.objectUrl = null;
@@ -147,6 +154,19 @@ export async function sendFileFallback(file) {
 
 export function handleFallbackSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
+
+	// Mark peer as connected when we receive any signal from the other side
+	if (fallbackState.active && !fallbackState.peerConnected) {
+		fallbackState.peerConnected = true;
+		// Update status to "Connected via Relay" now that we have a peer
+		setConnectionStatus(
+			connectionStatusRef,
+			statusTextRef,
+			"Connected via Relay",
+			"good",
+		);
+	}
+
 	if (signal.type === "file-meta") {
 		fallbackState.meta = signal;
 		fallbackState.receiveBuffer = [];
