@@ -11,7 +11,6 @@ export function formatBytes(bytes, decimals = 1) {
 export function formatTime(date) {
 	const now = new Date();
 	const diff = Math.floor((now - date) / 1000);
-	// Show time for today, full date+time for older
 	if (diff < 86400 && date.getDate() === now.getDate()) {
 		return date.toLocaleTimeString([], {
 			hour: "2-digit",
@@ -52,5 +51,12 @@ export function setConnectionStatus(connectionStatus, statusText, text, state) {
 	if (statusText) {
 		statusText.textContent = text;
 		statusText.className = `font-medium mb-4 text-sm ${state === "good" ? "text-emerald-400" : state === "bad" ? "text-red-400" : "text-indigo-400 animate-pulse"}`;
+	}
+	// Also update the info column element
+	const infoEl = document.getElementById("connection-info");
+	if (infoEl) {
+		infoEl.textContent = text;
+		// Use a simpler class for the small column
+		infoEl.className = `text-center text-xs leading-tight ${state === "good" ? "text-emerald-400" : state === "bad" ? "text-red-400" : "text-zinc-400"}`;
 	}
 }
