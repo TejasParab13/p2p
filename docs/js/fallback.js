@@ -36,19 +36,16 @@ export function initFallback(
 	processSendQueueCallback = processSendQueue;
 }
 
-export function activateFallback() {
+export function activateFallback(hasPeer = false) {
 	if (fallbackState.active) {
 		console.log("Fallback already active");
 		return;
 	}
 	fallbackState.active = true;
-	fallbackState.peerConnected = false; // reset peer flag
-	console.log("Fallback activated");
+	fallbackState.peerConnected = hasPeer; // set based on parameter
+	console.log("Fallback activated, hasPeer:", hasPeer);
 
-	// Only set status to "Connected via Relay" if we have already seen a peer
-	// Otherwise, leave current status (e.g., "Waiting for phone...") unchanged.
-	// We'll update to "Connected via Relay" when we receive a signal from the peer.
-	if (fallbackState.peerConnected) {
+	if (hasPeer) {
 		setConnectionStatus(
 			connectionStatusRef,
 			statusTextRef,
@@ -56,7 +53,7 @@ export function activateFallback() {
 			"good",
 		);
 	}
-	// Toast removed – no showError call
+	// Toast removed
 
 	if (processSendQueueCallback) processSendQueueCallback();
 }

@@ -15,7 +15,7 @@ import {
 	createPeerConnection,
 	flushPendingCandidates,
 	resetWebRTC,
-	isSwitchingToRelay, // imported to set flag before switching
+	isSwitchingToRelay,
 } from "./webrtc.js";
 import {
 	fallbackState,
@@ -114,12 +114,13 @@ function applyMode() {
 	const mode = getSelectedMode();
 	console.log("Applying mode:", mode);
 
+	// Check if we have an active direct connection
+	const hadDirectConnection = !!(
+		webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open"
+	);
+
 	// If switching to fallback from an active direct connection, set flag to suppress "Data channel closed"
-	if (
-		mode === "fallback" &&
-		webrtcState.dataChannel &&
-		webrtcState.dataChannel.readyState === "open"
-	) {
+	if (mode === "fallback" && hadDirectConnection) {
 		isSwitchingToRelay = true;
 	}
 
@@ -128,12 +129,22 @@ function applyMode() {
 	initiatorStarted = false;
 
 	if (mode === "fallback") {
-		activateFallback();
+		// Pass whether we had a peer already
+		activateFallback(hadDirectConnection);
 		if (!isInitiator) {
 			socket.emit("signal", {
 				room: currentRoom,
 				signal: { type: "mode-change", mode: "fallback" },
 			});
+		}
+		// If we didn't have a peer, set status to waiting
+		if (!hadDirectConnection) {
+			setConnectionStatus(
+				connectionStatus,
+				statusText,
+				"Waiting for phone to scan...",
+				"warn",
+			);
 		}
 	} else {
 		if (isInitiator) {
