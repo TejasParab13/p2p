@@ -45,7 +45,7 @@ export function activateFallback() {
 	setConnectionStatus(
 		connectionStatusRef,
 		statusTextRef,
-		"Using WebSocket fallback (reliable)",
+		"Connected via Relay", // changed from "Using WebSocket fallback (reliable)"
 		"good",
 	);
 	showError(

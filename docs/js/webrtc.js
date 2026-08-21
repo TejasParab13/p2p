@@ -1,6 +1,7 @@
 import { RTC_CONFIG } from "./config.js";
 import { setConnectionStatus, showError } from "./utils.js";
 import { transferHistory, renderHistory } from "./history.js";
+import { fallbackState } from "./fallback.js"; // import fallbackState
 
 // Mutable state object – exported so main.js can modify it
 export const webrtcState = {
@@ -221,13 +222,17 @@ export function setupDataChannel(channel, processSendQueueCallback) {
 		);
 		processSendQueueCallback();
 	};
-	channel.onclose = () =>
-		setConnectionStatus(
-			connectionStatusRef,
-			statusTextRef,
-			"Data channel closed.",
-			"bad",
-		);
+	channel.onclose = () => {
+		// Only show closed if we are not in fallback mode
+		if (!fallbackState.active) {
+			setConnectionStatus(
+				connectionStatusRef,
+				statusTextRef,
+				"Data channel closed.",
+				"bad",
+			);
+		}
+	};
 	channel.onerror = (err) => {
 		console.error("Data channel error:", err);
 		showError("Data channel error. Reload and reconnect.", errorBoxRef);

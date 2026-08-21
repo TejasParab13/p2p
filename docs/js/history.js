@@ -39,16 +39,28 @@ export function renderHistory() {
 					? '<svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'
 					: `<div class="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>`;
 
-		// Redownload icon for received completed files
-		const redownloadIcon = `<svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9.75v6.75m0 0-3-3m3 3 3-3m-7.5 3a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" /></svg>`;
 		const downloadIcon = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>`;
+		const grayDownloadIcon = `<svg class="w-5 h-5 text-zinc-500 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>`;
 
-		const actionButton =
-			isReceived && item.status === "completed" && item.objectUrl
-				? `<a href="${item.objectUrl}" download="${item.name}" class="shrink-0 ml-3 p-2 rounded-lg bg-zinc-800 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 transition-colors" title="Download again">
-         ${redownloadIcon}
-       </a>`
-				: `<div class="shrink-0 ml-3 p-2">${statusIcon}</div>`;
+		let actionButton;
+		if (isReceived && item.status === "completed" && item.objectUrl) {
+			const isDownloaded = item.downloaded || false;
+			const iconHtml = isDownloaded ? grayDownloadIcon : downloadIcon;
+			const title = isDownloaded ? "Download again" : "Download";
+			const extraClass = isDownloaded
+				? "opacity-60 hover:opacity-100"
+				: "";
+			actionButton = `
+				<a href="${item.objectUrl}" download="${item.name}" 
+				   class="shrink-0 ml-3 p-2 rounded-lg bg-zinc-800 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 transition-colors download-btn ${extraClass}" 
+				   title="${title}"
+				   data-id="${item.id}">
+				   ${iconHtml}
+				</a>
+			`;
+		} else {
+			actionButton = `<div class="shrink-0 ml-3 p-2">${statusIcon}</div>`;
+		}
 
 		const progressBar =
 			item.status === "transferring"
@@ -84,6 +96,18 @@ export function renderHistory() {
 		(isEmpty ? "" : html) + (isEmpty ? emptyHTML : "");
 	historyListMobile.innerHTML =
 		(isEmpty ? "" : html) + (isEmpty ? emptyHTML : "");
+
+	// Attach click handlers to mark as downloaded
+	document.querySelectorAll(".download-btn").forEach((btn) => {
+		btn.addEventListener("click", function (e) {
+			const id = this.dataset.id;
+			const item = transferHistory.find((h) => h.id === id);
+			if (item) {
+				item.downloaded = true;
+				renderHistory();
+			}
+		});
+	});
 }
 
 export function clearHistory() {
