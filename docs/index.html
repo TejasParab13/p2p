@@ -36,49 +36,27 @@
 
             <!-- 1:1 split: Info (flex-1) and Row (flex-1) -->
             <div class="flex-1 flex flex-col gap-3 lg:gap-4 min-h-0">
-              <!-- Info section – horizontal layout -->
-              <div class="flex-1 bg-[#18181b] border border-[#2a2a2e] rounded-xl p-5 overflow-hidden flex flex-col">
-                <!-- Status – full width -->
-                <p id="status" class="text-[#b0b0b0] font-medium text-base text-center shrink-0">Waiting for phone to scan...</p>
-                <!-- Main row: left (QR) and right (Mode) -->
-                <div class="flex-1 flex flex-row items-center justify-around gap-4 min-h-0">
-                  <!-- Left: QR + label + copy -->
-                  <div class="flex flex-col items-center justify-center flex-1">
-                    <div id="qrcode" class="bg-white p-2 rounded-lg mb-2"></div>
-                    <p class="text-[11px] text-zinc-500 mb-1.5 text-center">Point your phone camera here</p>
-                    <div class="flex items-center gap-1.5 bg-[#121214] p-2 rounded-lg border border-[#2a2a2e] w-full max-w-[200px]">
-                      <p id="room-url" class="text-xs font-mono text-zinc-400 truncate flex-1 px-1"></p>
-                      <button onclick="navigator.clipboard.writeText(document.getElementById('room-url').textContent)" class="shrink-0 text-xs text-[#b0b0b0] hover:text-[#d0d0d0] font-medium px-3 py-1.5 rounded hover:bg-[#2a2a2e]/30 transition">Copy</button>
-                    </div>
-                  </div>
-                  <!-- Right: Transfer Mode -->
-                  <div class="flex flex-col items-center justify-center flex-1">
-                    <h3 class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2 text-center">Transfer Mode</h3>
-                    <div class="flex rounded-full bg-[#1a1a1a] p-1 border border-[#2a2a2e] w-full max-w-[220px]" id="mode-toggle">
-                      <label class="flex-1 text-center py-2 px-4 rounded-full text-sm font-medium cursor-pointer transition-colors" data-mode="webrtc">
-                        <input type="radio" name="mode" value="webrtc" class="hidden peer" checked />
-                        <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 block py-1 px-2 rounded-full transition-all">Direct</span>
-                      </label>
-                      <label class="flex-1 text-center py-2 px-4 rounded-full text-sm font-medium cursor-pointer transition-colors" data-mode="fallback">
-                        <input type="radio" name="mode" value="fallback" class="hidden peer" />
-                        <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 block py-1 px-2 rounded-full transition-all">Relay</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
+              <!-- Info section – only QR and heading -->
+              <div class="flex-1 bg-[#18181b] border border-[#2a2a2e] rounded-xl p-5 overflow-hidden flex flex-col items-center justify-center">
+                <h2 class="text-2xl font-bold text-white tracking-tight mb-2">Scan the QR code to connect</h2>
+                <p class="text-sm text-zinc-400 mb-3">Point your phone camera here</p>
+                <div id="qrcode" class="bg-white p-2 rounded-lg"></div>
               </div>
 
-              <!-- Row: Troubleshooting (2) + Send Files (3) -->
+              <!-- Row: Mode Selector (2) + Send Files (3) -->
               <div class="flex-1 flex gap-3 lg:gap-4 min-h-0">
-                <!-- Troubleshooting – 2 parts -->
+                <!-- Mode Selector – 2 parts -->
                 <div class="flex-[2] bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex flex-col justify-center min-h-0 overflow-hidden">
-                  <h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5 text-[#b0b0b0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                    Troubleshooting
-                  </h3>
-                  <div class="flex flex-col gap-1.5">
-                    <a href="allow-firewall.bat" download class="w-full text-center bg-[#2a2a2e] hover:bg-[#3a3a3e] text-[#d0d0d0] border border-[#3a3a3e] rounded-lg py-1.5 text-[11px] font-medium transition">Allow Firewall</a>
-                    <a href="remove-firewall.bat" download class="w-full text-center bg-[#18181b] hover:bg-[#222226] text-zinc-400 border border-[#2a2a2e] rounded-lg py-1.5 text-[11px] font-medium transition">Remove Rules</a>
+                  <h3 class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-2 text-center">Transfer Mode</h3>
+                  <div class="flex rounded-full bg-[#1a1a1a] p-1 border border-[#2a2a2e] w-full max-w-[220px] mx-auto" id="mode-toggle">
+                    <label class="flex-1 text-center py-2 px-4 rounded-full text-sm font-medium cursor-pointer transition-colors" data-mode="webrtc">
+                      <input type="radio" name="mode" value="webrtc" class="hidden peer" checked />
+                      <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 block py-1 px-2 rounded-full transition-all">Direct</span>
+                    </label>
+                    <label class="flex-1 text-center py-2 px-4 rounded-full text-sm font-medium cursor-pointer transition-colors" data-mode="fallback">
+                      <input type="radio" name="mode" value="fallback" class="hidden peer" />
+                      <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 block py-1 px-2 rounded-full transition-all">Relay</span>
+                    </label>
                   </div>
                 </div>
 
