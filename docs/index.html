@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>P2P File Share</title>
-  <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -14,6 +13,99 @@
   <script type="module" src="js/webrtc.js"></script>
   <script type="module" src="js/fallback.js"></script>
   <script type="module" src="js/main.js"></script>
+  <style>
+    /* ===== Missing critical styles ===== */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a1e;
+      color: #e0e4e8;
+    }
+
+    /* Outer container – 32px margin all around */
+    .outer-container {
+      position: fixed;
+      inset: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Inner dark panel – fills the remaining space */
+    .inner-panel {
+      width: 100%;
+      height: 100%;
+      background: #0d0d0f;
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Scrollbar (only inside history lists) */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2e; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3a3a3e; }
+
+    /* Utility overrides for Tailwind */
+    .bg-\[\#18181b\] { background: #18181b; }
+    .border-\[\#2a2a2e\] { border-color: #2a2a2e; }
+    .bg-\[\#121214\] { background: #121214; }
+
+    .drop-zone-active {
+      border-color: #7a7a7e !important;
+      background: rgba(26, 26, 30, 0.6) !important;
+    }
+
+    #qrcode canvas {
+      display: block;
+      margin: 0 auto;
+      border-radius: 8px;
+      width: 160px !important;
+      height: 160px !important;
+    }
+
+    .fade-in {
+      animation: fadeIn 0.2s ease-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      font-weight: 500;
+      letter-spacing: -0.01em;
+    }
+    .text-xs {
+      letter-spacing: 0.02em;
+    }
+    #status, #connection-status {
+      font-weight: 500;
+    }
+
+    @media (max-width: 1023px) {
+      main {
+        padding: 8px !important;
+      }
+      .outer-container {
+        inset: 16px;
+      }
+      .inner-panel {
+        border-radius: 16px;
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="outer-container">
@@ -189,5 +281,7 @@
       </main>
     </div>
   </div>
+
+  <!-- This is a placeholder for any additional scripts if needed -->
 </body>
 </html>
