@@ -104,6 +104,7 @@ function setModeFromSignal(mode) {
 	if (mode !== "webrtc" && mode !== "fallback") return;
 	console.log("Mode changed via signal:", mode);
 	currentMode = mode;
+	// Update radio buttons if they exist (PC view)
 	for (const radio of modeRadiosPC) {
 		radio.checked = radio.value === mode;
 	}
@@ -129,6 +130,7 @@ function applyMode() {
 	initiatorStarted = false;
 
 	if (mode === "fallback") {
+		// Pass whether we had a peer already
 		activateFallback(hadDirectConnection);
 		if (!isInitiator) {
 			socket.emit("signal", {
@@ -136,6 +138,7 @@ function applyMode() {
 				signal: { type: "mode-change", mode: "fallback" },
 			});
 		}
+		// If we didn't have a peer, set status to waiting
 		if (!hadDirectConnection) {
 			setConnectionStatus(
 				connectionStatus,
@@ -252,14 +255,15 @@ async function processSendQueue() {
 async function handleSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
 
-	// Handle mode sync from the other side
-	if (signal.type === "mode-sync" && typeof signal.mode === "string") {
-		console.log("Mode sync received:", signal.mode);
-		// Only switch if we are not already in that mode and we are the PC (non-initiator)
-		// or if we are the initiator but we haven't started yet
-		const currentMode = getSelectedMode();
-		if (currentMode !== signal.mode) {
-			setModeFromSignal(signal.mode);
+	// Handle mode request from phone
+	if (signal.type === "request-mode") {
+		// Only the PC (non-initiator) responds with its current mode
+		if (!isInitiator) {
+			const mode = getSelectedMode();
+			socket.emit("signal", {
+				room: currentRoom,
+				signal: { type: "mode-change", mode: mode },
+			});
 		}
 		return;
 	}
@@ -358,13 +362,12 @@ function joinAndMaybeStart() {
 	connectErrorCount = 0;
 	socket.emit("join-room", currentRoom);
 
-	// Send our current mode to the room so the other side can sync
-	socket.emit("signal", {
-		room: currentRoom,
-		signal: { type: "mode-sync", mode: getSelectedMode() },
-	});
-
 	if (isInitiator) {
+		// Phone: request the current mode from PC
+		socket.emit("signal", {
+			room: currentRoom,
+			signal: { type: "request-mode" },
+		});
 		setConnectionStatus(
 			connectionStatus,
 			statusText,
@@ -372,6 +375,7 @@ function joinAndMaybeStart() {
 			"warn",
 		);
 	} else {
+		// PC: apply mode (uses the currently selected radio)
 		applyMode();
 	}
 }
