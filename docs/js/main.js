@@ -104,11 +104,22 @@ function setModeFromSignal(mode) {
 	if (mode !== "webrtc" && mode !== "fallback") return;
 	console.log("Mode changed via signal:", mode);
 	currentMode = mode;
-	// Update radio buttons if they exist (PC view)
 	for (const radio of modeRadiosPC) {
 		radio.checked = radio.value === mode;
 	}
 	applyMode();
+	// If we are the phone (initiator) and mode is fallback, we are now connected via relay
+	if (isInitiator && mode === "fallback") {
+		// Override status set by applyMode
+		setConnectionStatus(
+			connectionStatus,
+			statusText,
+			"Connected via Relay",
+			"good",
+		);
+		// Also set peerConnected to true to avoid reverting
+		fallbackState.peerConnected = true;
+	}
 }
 
 function applyMode() {
@@ -130,7 +141,6 @@ function applyMode() {
 	initiatorStarted = false;
 
 	if (mode === "fallback") {
-		// Pass whether we had a peer already
 		activateFallback(hadDirectConnection);
 		if (!isInitiator) {
 			socket.emit("signal", {
@@ -138,8 +148,8 @@ function applyMode() {
 				signal: { type: "mode-change", mode: "fallback" },
 			});
 		}
-		// If we didn't have a peer, set status to waiting
-		if (!hadDirectConnection) {
+		// If we didn't have a peer, set status to waiting (will be updated when phone joins)
+		if (!hadDirectConnection && !fallbackState.peerConnected) {
 			setConnectionStatus(
 				connectionStatus,
 				statusText,
@@ -264,6 +274,16 @@ async function handleSignal(signal) {
 				room: currentRoom,
 				signal: { type: "mode-change", mode: mode },
 			});
+			// If PC is in fallback mode, update status to connected
+			if (mode === "fallback") {
+				setConnectionStatus(
+					connectionStatus,
+					statusText,
+					"Connected via Relay",
+					"good",
+				);
+				fallbackState.peerConnected = true;
+			}
 		}
 		return;
 	}

@@ -42,7 +42,7 @@ export function activateFallback(hasPeer = false) {
 		return;
 	}
 	fallbackState.active = true;
-	fallbackState.peerConnected = hasPeer; // set based on parameter
+	fallbackState.peerConnected = hasPeer;
 	console.log("Fallback activated, hasPeer:", hasPeer);
 
 	if (hasPeer) {
@@ -73,6 +73,17 @@ export function resetFallback() {
 }
 
 export async function sendFileFallback(file) {
+	// Safety net: if fallback is active and we haven't marked peer as connected, do it now
+	if (fallbackState.active && !fallbackState.peerConnected) {
+		fallbackState.peerConnected = true;
+		setConnectionStatus(
+			connectionStatusRef,
+			statusTextRef,
+			"Connected via Relay",
+			"good",
+		);
+	}
+
 	const transferId = crypto.randomUUID();
 	transferHistory.push({
 		id: transferId,
