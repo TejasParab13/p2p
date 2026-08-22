@@ -15,7 +15,7 @@ import {
 	createPeerConnection,
 	flushPendingCandidates,
 	resetWebRTC,
-	isSwitchingToRelay,
+	setSwitchingToRelay,
 } from "./webrtc.js";
 import {
 	fallbackState,
@@ -45,7 +45,6 @@ const roomCodeDisplay = document.getElementById("room-code-display");
 const roomCodeInput = document.getElementById("room-code-input");
 const filterRadios = document.querySelectorAll('input[name="filter"]');
 
-// ---- Init history module ----
 initHistory({
 	historyListPC,
 	historyListMobile,
@@ -53,25 +52,22 @@ initHistory({
 	historyEmptyMobile,
 });
 
-// ---- Socket ----
 const socket = io(SIGNALING_URL, { transports: ["websocket", "polling"] });
 
-// ---- State ----
 let initiatorStarted = false;
 let connectErrorCount = 0;
 const params = new URLSearchParams(window.location.search);
 const urlRoom = (params.get("room") || "").trim();
 const isInitiator = Boolean(urlRoom);
 const currentRoom = urlRoom || Math.random().toString(36).substring(2, 9);
+let currentMode = "webrtc";
+let retryTimeout = null;
+const MAX_RETRY_MS = 30000; // 30s
 
-// ---- Display room code ----
-if (roomCodeDisplay) {
-	roomCodeDisplay.textContent = currentRoom;
-}
+if (roomCodeDisplay) roomCodeDisplay.textContent = currentRoom;
 
-// ---- Join room function ----
 window.joinRoom = function () {
-	const code = roomCodeInput.value.trim();
+	const code = encodeURIComponent(roomCodeInput.value.trim().toLowerCase());
 	if (!code) {
 		showError("Please enter a room code", errorBox);
 		return;
@@ -81,17 +77,11 @@ window.joinRoom = function () {
 	window.location.href = url.toString();
 };
 
-// ---- Filter radio listeners ----
-filterRadios.forEach((radio) => {
+filterRadios.forEach((radio) =>
 	radio.addEventListener("change", () => {
-		if (radio.checked) {
-			setFilter(radio.value);
-		}
-	});
-});
-
-// ---- Mode management ----
-let currentMode = "webrtc";
+		if (radio.checked) setFilter(radio.value);
+	}),
+);
 
 function getSelectedMode() {
 	for (const radio of modeRadiosPC) {
@@ -104,20 +94,15 @@ function setModeFromSignal(mode) {
 	if (mode !== "webrtc" && mode !== "fallback") return;
 	console.log("Mode changed via signal:", mode);
 	currentMode = mode;
-	for (const radio of modeRadiosPC) {
-		radio.checked = radio.value === mode;
-	}
+	for (const radio of modeRadiosPC) radio.checked = radio.value === mode;
 	applyMode();
-	// If we are the phone (initiator) and mode is fallback, we are now connected via relay
 	if (isInitiator && mode === "fallback") {
-		// Override status set by applyMode
 		setConnectionStatus(
 			connectionStatus,
 			statusText,
 			"Connected via Relay",
 			"good",
 		);
-		// Also set peerConnected to true to avoid reverting
 		fallbackState.peerConnected = true;
 	}
 }
@@ -125,17 +110,12 @@ function setModeFromSignal(mode) {
 function applyMode() {
 	const mode = getSelectedMode();
 	console.log("Applying mode:", mode);
-
-	// Check if we have an active direct connection
 	const hadDirectConnection = !!(
 		webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open"
 	);
-
-	// If switching to fallback from an active direct connection, set flag to suppress "Data channel closed"
 	if (mode === "fallback" && hadDirectConnection) {
-		isSwitchingToRelay = true;
+		setSwitchingToRelay(true);
 	}
-
 	resetWebRTC();
 	resetFallback();
 	initiatorStarted = false;
@@ -148,7 +128,6 @@ function applyMode() {
 				signal: { type: "mode-change", mode: "fallback" },
 			});
 		}
-		// If we didn't have a peer, set status to waiting (will be updated when phone joins)
 		if (!hadDirectConnection && !fallbackState.peerConnected) {
 			setConnectionStatus(
 				connectionStatus,
@@ -175,7 +154,6 @@ function applyMode() {
 	}
 }
 
-// ---- WebRTC initiator wrapper (phone only) ----
 function startInitiator() {
 	if (initiatorStarted || !window.RTCPeerConnection) return;
 	if (getSelectedMode() === "fallback") return;
@@ -207,7 +185,6 @@ function startInitiator() {
 		});
 }
 
-// ---- Init modules ----
 initWebRTC(
 	socket,
 	currentRoom,
@@ -225,20 +202,21 @@ initFallback(
 	processSendQueue,
 );
 
-// ---- Unified send queue ----
 async function processSendQueue() {
 	if (webrtcState.isSending || webrtcState.sendQueue.length === 0) return;
-
 	if (!fallbackState.active) {
 		if (
 			!webrtcState.dataChannel ||
 			webrtcState.dataChannel.readyState !== "open"
 		) {
-			setTimeout(processSendQueue, 2000);
+			if (retryTimeout) clearTimeout(retryTimeout);
+			retryTimeout = setTimeout(() => {
+				retryTimeout = null;
+				processSendQueue();
+			}, 2000);
 			return;
 		}
 	}
-
 	webrtcState.isSending = true;
 	const file = webrtcState.sendQueue.shift();
 	try {
@@ -261,20 +239,15 @@ async function processSendQueue() {
 	}
 }
 
-// ---- Signaling ----
 async function handleSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
-
-	// Handle mode request from phone
 	if (signal.type === "request-mode") {
-		// Only the PC (non-initiator) responds with its current mode
 		if (!isInitiator) {
 			const mode = getSelectedMode();
 			socket.emit("signal", {
 				room: currentRoom,
-				signal: { type: "mode-change", mode: mode },
+				signal: { type: "mode-change", mode },
 			});
-			// If PC is in fallback mode, update status to connected
 			if (mode === "fallback") {
 				setConnectionStatus(
 					connectionStatus,
@@ -287,30 +260,27 @@ async function handleSignal(signal) {
 		}
 		return;
 	}
-
 	if (signal.type === "mode-change" && typeof signal.mode === "string") {
 		setModeFromSignal(signal.mode);
 		return;
 	}
-
 	if (signal.type && signal.type.startsWith("file-")) {
 		handleFallbackSignal(signal);
 		return;
 	}
-
 	if (getSelectedMode() === "fallback") {
 		console.log("Ignoring WebRTC signal because fallback is active");
 		return;
 	}
-
 	if (!window.RTCPeerConnection) return;
-
 	if (!webrtcState.peerConnection && !isInitiator) {
-		const pc = createPeerConnection(currentRoom, null, processSendQueue);
-		webrtcState.peerConnection = pc;
+		webrtcState.peerConnection = createPeerConnection(
+			currentRoom,
+			null,
+			processSendQueue,
+		);
 	}
 	if (!webrtcState.peerConnection) return;
-
 	if (signal.sdp) {
 		if (signal.sdp.type === "offer") {
 			if (webrtcState.peerConnection.signalingState !== "stable") return;
@@ -350,7 +320,6 @@ async function handleSignal(signal) {
 	}
 }
 
-// ---- QR & join ----
 function makeQr(roomId) {
 	const qrEl = document.getElementById("qrcode");
 	if (!qrEl) {
@@ -381,9 +350,7 @@ function makeQr(roomId) {
 function joinAndMaybeStart() {
 	connectErrorCount = 0;
 	socket.emit("join-room", currentRoom);
-
 	if (isInitiator) {
-		// Phone: request the current mode from PC
 		socket.emit("signal", {
 			room: currentRoom,
 			signal: { type: "request-mode" },
@@ -395,16 +362,15 @@ function joinAndMaybeStart() {
 			"warn",
 		);
 	} else {
-		// PC: apply mode (uses the currently selected radio)
 		applyMode();
 	}
 }
 
-socket.on("signal", (signal) => {
+socket.on("signal", (signal) =>
 	handleSignal(signal).catch((err) =>
 		showError("Signaling error: " + err.message, errorBox),
-	);
-});
+	),
+);
 socket.on("connect", joinAndMaybeStart);
 socket.on("connect_error", (err) => {
 	connectErrorCount += 1;
@@ -416,7 +382,6 @@ if (socket.connected) joinAndMaybeStart();
 if (!window.RTCPeerConnection)
 	showError("WebRTC not supported. Use Relay mode.", errorBox);
 
-// ---- View setup ----
 if (!isInitiator) {
 	pcView.classList.remove("hidden");
 	makeQr(currentRoom);
@@ -436,16 +401,13 @@ if (!isInitiator) {
 	);
 }
 
-// ---- File handling ----
 async function handleFileSelect(event) {
 	const files = event.target.files;
 	if (!files || files.length === 0) return;
-
 	const hasWebRTC =
 		webrtcState.dataChannel &&
 		webrtcState.dataChannel.readyState === "open";
 	const hasFallback = fallbackState.active;
-
 	if (!hasWebRTC && !hasFallback) {
 		showError(
 			"No active connection. Please ensure you are connected or switch to Relay mode.",
@@ -454,9 +416,23 @@ async function handleFileSelect(event) {
 		event.target.value = "";
 		return;
 	}
-
 	for (let i = 0; i < files.length; i++) webrtcState.sendQueue.push(files[i]);
 	event.target.value = "";
+	// Create queued history items for each file to avoid silent drop
+	for (const file of files) {
+		transferHistory.push({
+			id: crypto.randomUUID(),
+			name: file.name,
+			size: file.size,
+			type: file.type || "application/octet-stream",
+			direction: "sent",
+			status: "queued",
+			progress: 0,
+			timestamp: new Date(),
+			objectUrl: null,
+		});
+	}
+	renderHistory();
 	processSendQueue();
 }
 
@@ -469,21 +445,35 @@ if (dropZone && fileInputPC) {
 		e.preventDefault();
 		dropZone.classList.add("drop-zone-active");
 	});
-	dropZone.addEventListener("dragleave", () => {
-		dropZone.classList.remove("drop-zone-active");
-	});
+	dropZone.addEventListener("dragleave", () =>
+		dropZone.classList.remove("drop-zone-active"),
+	);
 	dropZone.addEventListener("drop", (e) => {
 		e.preventDefault();
 		dropZone.classList.remove("drop-zone-active");
 		if (e.dataTransfer.files.length) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++)
 				webrtcState.sendQueue.push(e.dataTransfer.files[i]);
+			// Also create queued items for dropped files
+			for (const file of e.dataTransfer.files) {
+				transferHistory.push({
+					id: crypto.randomUUID(),
+					name: file.name,
+					size: file.size,
+					type: file.type || "application/octet-stream",
+					direction: "sent",
+					status: "queued",
+					progress: 0,
+					timestamp: new Date(),
+					objectUrl: null,
+				});
+			}
+			renderHistory();
 			processSendQueue();
 		}
 	});
 }
 
-// ---- Mode change: auto-apply when radio changes ----
 for (const radio of modeRadiosPC) {
 	radio.addEventListener("change", () => {
 		const slider = document.getElementById("mode-slider");
@@ -495,11 +485,8 @@ for (const radio of modeRadiosPC) {
 				const labels = document.querySelectorAll("label[data-mode]");
 				let index = 0;
 				for (const label of labels) {
-					if (
-						label.querySelector('input[type="radio"]') === selected
-					) {
+					if (label.querySelector('input[type="radio"]') === selected)
 						break;
-					}
 					index++;
 				}
 				slider.style.transform = `translateX(${index * 100}%)`;
@@ -509,7 +496,6 @@ for (const radio of modeRadiosPC) {
 	});
 }
 
-// ---- Initial sync of slider ----
 window.addEventListener("load", () => {
 	const slider = document.getElementById("mode-slider");
 	if (slider) {
@@ -518,9 +504,8 @@ window.addEventListener("load", () => {
 			const labels = document.querySelectorAll("label[data-mode]");
 			let index = 0;
 			for (const label of labels) {
-				if (label.querySelector('input[type="radio"]') === selected) {
+				if (label.querySelector('input[type="radio"]') === selected)
 					break;
-				}
 				index++;
 			}
 			slider.style.transform = `translateX(${index * 100}%)`;
@@ -529,5 +514,4 @@ window.addEventListener("load", () => {
 	applyMode();
 });
 
-// ---- Expose clearHistory to global ----
 window.clearHistory = clearHistory;

@@ -3,7 +3,6 @@ import { setConnectionStatus, showError } from "./utils.js";
 import { transferHistory, renderHistory } from "./history.js";
 import { fallbackState } from "./fallback.js";
 
-// Mutable state object – exported so main.js can modify it
 export const webrtcState = {
 	peerConnection: null,
 	dataChannel: null,
@@ -13,7 +12,6 @@ export const webrtcState = {
 	isSending: false,
 };
 
-// These will be set from main
 let socketRef = null;
 let currentRoomRef = null;
 let isInitiatorRef = false;
@@ -21,7 +19,10 @@ let errorBoxRef = null;
 let connectionStatusRef = null;
 let statusTextRef = null;
 
-export let isSwitchingToRelay = false; // flag to suppress "Data channel closed" when switching
+let isSwitchingToRelay = false;
+export function setSwitchingToRelay(value) {
+	isSwitchingToRelay = value;
+}
 
 export function initWebRTC(
 	socket,
@@ -39,7 +40,6 @@ export function initWebRTC(
 	statusTextRef = statusText;
 }
 
-// Helper to read chunk
 function readFileChunk(blob) {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
@@ -53,12 +53,21 @@ async function waitUntilBufferLow(channel, limit) {
 	while (channel.bufferedAmount > limit) {
 		if (channel.readyState !== "open")
 			throw new Error("Data channel closed");
-		await new Promise((resolve) => setTimeout(resolve, 30));
+		await new Promise((r) => setTimeout(r, 30));
+	}
+}
+
+function throttleRender(histItem, progress) {
+	const newPct = Math.min(Math.round(progress), 99);
+	if (newPct !== histItem.progress) {
+		histItem.progress = newPct;
+		renderHistory();
 	}
 }
 
 export async function sendFileWebRTC(file) {
 	const transferId = crypto.randomUUID();
+	// Create history item with "queued" status
 	transferHistory.push({
 		id: transferId,
 		name: file.name,
@@ -71,6 +80,7 @@ export async function sendFileWebRTC(file) {
 		objectUrl: null,
 	});
 	renderHistory();
+
 	try {
 		webrtcState.dataChannel.send(
 			JSON.stringify({
@@ -98,9 +108,7 @@ export async function sendFileWebRTC(file) {
 					(h) => h.id === transferId,
 				);
 				if (histItem) {
-					const pct = Math.round((offset / file.size) * 100);
-					histItem.progress = Math.min(pct, 99);
-					renderHistory();
+					throttleRender(histItem, (offset / file.size) * 100);
 				}
 			}
 		}
@@ -177,6 +185,8 @@ async function handleDataMessage(event) {
 		}
 		return;
 	}
+	// Binary chunk – it must be matched to a specific transfer ID.
+	// We embed the ID in a small binary header: first 4 bytes = ID length, then ID, then chunk.
 	let arrayBuffer = null;
 	let byteLength = 0;
 	if (event.data instanceof ArrayBuffer) {
@@ -192,23 +202,26 @@ async function handleDataMessage(event) {
 	} else {
 		return;
 	}
-	if (byteLength === 0) return;
-	const activeId = Array.from(webrtcState.activeReceives.keys())[0];
-	if (!activeId) return;
-	const receiveData = webrtcState.activeReceives.get(activeId);
+	if (byteLength < 4) return;
+	// Read the ID length from first 4 bytes (uint32)
+	const idLen = new Uint32Array(arrayBuffer.slice(0, 4))[0];
+	if (byteLength < 4 + idLen) return;
+	const id = new TextDecoder().decode(arrayBuffer.slice(4, 4 + idLen));
+	const chunkData = arrayBuffer.slice(4 + idLen);
+	if (chunkData.byteLength === 0) return;
+	const receiveData = webrtcState.activeReceives.get(id);
 	if (!receiveData) return;
-	receiveData.buffer.push(arrayBuffer);
-	receiveData.receivedSize += byteLength;
-	const histItem = transferHistory.find((h) => h.id === activeId);
+	receiveData.buffer.push(chunkData);
+	receiveData.receivedSize += chunkData.byteLength;
+	const histItem = transferHistory.find((h) => h.id === id);
 	if (histItem && receiveData.meta.size > 0) {
-		const pct = Math.round(
+		throttleRender(
+			histItem,
 			(receiveData.receivedSize / receiveData.meta.size) * 100,
 		);
-		histItem.progress = Math.min(pct, 99);
-		renderHistory();
 	}
 	if (receiveData.receivedSize >= receiveData.meta.size) {
-		completeReceiveWebRTC(activeId);
+		completeReceiveWebRTC(id);
 	}
 }
 
@@ -225,7 +238,6 @@ export function setupDataChannel(channel, processSendQueueCallback) {
 		processSendQueueCallback();
 	};
 	channel.onclose = () => {
-		// Only show closed if we are not in fallback mode AND not switching to relay
 		if (!fallbackState.active && !isSwitchingToRelay) {
 			setConnectionStatus(
 				connectionStatusRef,
@@ -234,7 +246,6 @@ export function setupDataChannel(channel, processSendQueueCallback) {
 				"bad",
 			);
 		}
-		// Reset the flag after handling
 		isSwitchingToRelay = false;
 	};
 	channel.onerror = (err) => {
@@ -270,7 +281,6 @@ export function createPeerConnection(
 	const pc = new RTCPeerConnection(RTC_CONFIG);
 	pc.onicecandidate = (event) => {
 		if (event.candidate) {
-			console.log("Local ICE candidate:", event.candidate.candidate);
 			socketRef.emit("signal", {
 				room: roomId,
 				signal: { candidate: event.candidate.toJSON() },
@@ -283,7 +293,6 @@ export function createPeerConnection(
 		if (onDataChannel) onDataChannel(webrtcState.dataChannel);
 	};
 	pc.onconnectionstatechange = () => {
-		console.log("Connection state:", pc.connectionState);
 		if (pc.connectionState === "connected") {
 			setConnectionStatus(
 				connectionStatusRef,
@@ -300,21 +309,36 @@ export function createPeerConnection(
 			);
 		}
 	};
+	// Fix ICE restart: actually renegotiate
+	pc.onnegotiationneeded = async () => {
+		try {
+			// Only initiator should send new offer
+			if (!isInitiatorRef) return;
+			const offer = await pc.createOffer({ iceRestart: true });
+			await pc.setLocalDescription(offer);
+			socketRef.emit("signal", {
+				room: roomId,
+				signal: {
+					sdp: {
+						type: pc.localDescription.type,
+						sdp: pc.localDescription.sdp,
+					},
+				},
+			});
+		} catch (e) {
+			console.error("Renegotiation failed:", e);
+		}
+	};
 	pc.oniceconnectionstatechange = () => {
-		console.log("ICE state:", pc.iceConnectionState);
 		if (pc.iceConnectionState === "failed" && pc.restartIce)
 			pc.restartIce();
 	};
-	pc.onicecandidateerror = (err) => {
-		console.warn("ICE candidate error:", err);
-	};
+	pc.onicecandidateerror = (err) => console.warn("ICE candidate error:", err);
 	return pc;
 }
 
 export function resetWebRTC() {
-	if (webrtcState.peerConnection) {
-		webrtcState.peerConnection.close();
-	}
+	if (webrtcState.peerConnection) webrtcState.peerConnection.close();
 	webrtcState.peerConnection = null;
 	webrtcState.dataChannel = null;
 	webrtcState.pendingCandidates = [];

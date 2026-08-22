@@ -1,7 +1,6 @@
 import { transferHistory, renderHistory } from "./history.js";
 import { setConnectionStatus, showError } from "./utils.js";
 
-// Mutable state object
 export const fallbackState = {
 	active: false,
 	receiveBuffer: [],
@@ -9,16 +8,16 @@ export const fallbackState = {
 	receivedSize: 0,
 	complete: false,
 	objectUrl: null,
-	peerConnected: false, // track if we have received any signal from the other side
+	peerConnected: false,
 };
 
-// These will be set from main
 let socketRef = null;
 let currentRoomRef = null;
 let errorBoxRef = null;
 let connectionStatusRef = null;
 let statusTextRef = null;
 let processSendQueueCallback = null;
+let chunkAckTimeout = null;
 
 export function initFallback(
 	socket,
@@ -37,14 +36,10 @@ export function initFallback(
 }
 
 export function activateFallback(hasPeer = false) {
-	if (fallbackState.active) {
-		console.log("Fallback already active");
-		return;
-	}
+	if (fallbackState.active) return;
 	fallbackState.active = true;
 	fallbackState.peerConnected = hasPeer;
 	console.log("Fallback activated, hasPeer:", hasPeer);
-
 	if (hasPeer) {
 		setConnectionStatus(
 			connectionStatusRef,
@@ -53,8 +48,6 @@ export function activateFallback(hasPeer = false) {
 			"good",
 		);
 	}
-	// Toast removed
-
 	if (processSendQueueCallback) processSendQueueCallback();
 }
 
@@ -72,8 +65,15 @@ export function resetFallback() {
 	console.log("Fallback reset");
 }
 
+function throttleRender(histItem, progress) {
+	const newPct = Math.min(Math.round(progress), 99);
+	if (newPct !== histItem.progress) {
+		histItem.progress = newPct;
+		renderHistory();
+	}
+}
+
 export async function sendFileFallback(file) {
-	// Safety net: if fallback is active and we haven't marked peer as connected, do it now
 	if (fallbackState.active && !fallbackState.peerConnected) {
 		fallbackState.peerConnected = true;
 		setConnectionStatus(
@@ -83,7 +83,6 @@ export async function sendFileFallback(file) {
 			"good",
 		);
 	}
-
 	const transferId = crypto.randomUUID();
 	transferHistory.push({
 		id: transferId,
@@ -112,6 +111,30 @@ export async function sendFileFallback(file) {
 
 		const chunkSize = 16384;
 		let offset = 0;
+		const sendChunk = (chunkData, off) => {
+			return new Promise((resolve, reject) => {
+				const base64 = btoa(
+					String.fromCharCode(...new Uint8Array(chunkData)),
+				);
+				socketRef.emit(
+					"signal",
+					{
+						room: currentRoomRef,
+						signal: {
+							type: "file-chunk",
+							id: transferId,
+							data: base64,
+							offset: off,
+						},
+					},
+					(ack) => {
+						if (ack && ack.error) reject(new Error(ack.error));
+						else resolve();
+					},
+				);
+			});
+		};
+
 		while (offset < file.size) {
 			const chunk = file.slice(offset, offset + chunkSize);
 			const data = await new Promise((resolve) => {
@@ -119,28 +142,24 @@ export async function sendFileFallback(file) {
 				reader.onload = (e) => resolve(e.target.result);
 				reader.readAsArrayBuffer(chunk);
 			});
-			const base64 = btoa(String.fromCharCode(...new Uint8Array(data)));
-			socketRef.emit("signal", {
-				room: currentRoomRef,
-				signal: {
-					type: "file-chunk",
-					id: transferId,
-					data: base64,
-					offset: offset,
-				},
-			});
+			await sendChunk(data, offset);
 			offset += chunk.size || data.byteLength || 0;
 			const histItem = transferHistory.find((h) => h.id === transferId);
-			if (histItem) {
-				const pct = Math.round((offset / file.size) * 100);
-				histItem.progress = Math.min(pct, 99);
-				renderHistory();
-			}
+			if (histItem) throttleRender(histItem, (offset / file.size) * 100);
 		}
 
-		socketRef.emit("signal", {
-			room: currentRoomRef,
-			signal: { type: "file-end", id: transferId },
+		await new Promise((resolve, reject) => {
+			socketRef.emit(
+				"signal",
+				{
+					room: currentRoomRef,
+					signal: { type: "file-end", id: transferId },
+				},
+				(ack) => {
+					if (ack && ack.error) reject(new Error(ack.error));
+					else resolve();
+				},
+			);
 		});
 
 		const histItem = transferHistory.find((h) => h.id === transferId);
@@ -162,11 +181,8 @@ export async function sendFileFallback(file) {
 
 export function handleFallbackSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
-
-	// Mark peer as connected when we receive any signal from the other side
 	if (fallbackState.active && !fallbackState.peerConnected) {
 		fallbackState.peerConnected = true;
-		// Update status to "Connected via Relay" now that we have a peer
 		setConnectionStatus(
 			connectionStatusRef,
 			statusTextRef,
@@ -174,7 +190,6 @@ export function handleFallbackSignal(signal) {
 			"good",
 		);
 	}
-
 	if (signal.type === "file-meta") {
 		fallbackState.meta = signal;
 		fallbackState.receiveBuffer = [];
@@ -205,12 +220,11 @@ export function handleFallbackSignal(signal) {
 			fallbackState.receivedSize += bytes.byteLength;
 			const histItem = transferHistory.find((h) => h.id === signal.id);
 			if (histItem && fallbackState.meta.size > 0) {
-				const pct = Math.round(
+				throttleRender(
+					histItem,
 					(fallbackState.receivedSize / fallbackState.meta.size) *
 						100,
 				);
-				histItem.progress = Math.min(pct, 99);
-				renderHistory();
 			}
 			if (fallbackState.receivedSize >= fallbackState.meta.size) {
 				completeFallbackReceive(signal.id);

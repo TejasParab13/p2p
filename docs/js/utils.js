@@ -1,6 +1,7 @@
-// Helper functions
+let errorTimeout = null;
+
 export function formatBytes(bytes, decimals = 1) {
-	if (bytes === 0) return "0 B";
+	if (!bytes || isNaN(bytes) || bytes < 0) return "0 B";
 	const k = 1024;
 	const dm = decimals < 0 ? 0 : decimals;
 	const sizes = ["B", "KB", "MB", "GB", "TB"];
@@ -38,9 +39,10 @@ export function getFileIcon(type, name) {
 }
 
 export function showError(message, errorBox) {
+	if (errorTimeout) clearTimeout(errorTimeout);
 	errorBox.textContent = message;
 	errorBox.classList.remove("hidden");
-	setTimeout(() => errorBox.classList.add("hidden"), 8000);
+	errorTimeout = setTimeout(() => errorBox.classList.add("hidden"), 8000);
 }
 
 export function setConnectionStatus(connectionStatus, statusText, text, state) {
@@ -52,11 +54,9 @@ export function setConnectionStatus(connectionStatus, statusText, text, state) {
 		statusText.textContent = text;
 		statusText.className = `font-medium mb-4 text-sm ${state === "good" ? "text-emerald-400" : state === "bad" ? "text-red-400" : "text-indigo-400 animate-pulse"}`;
 	}
-	// Also update the info column element
 	const infoEl = document.getElementById("connection-info");
 	if (infoEl) {
 		infoEl.textContent = text;
-		// Use a simpler class for the small column
 		infoEl.className = `text-center text-xs leading-tight ${state === "good" ? "text-emerald-400" : state === "bad" ? "text-red-400" : "text-zinc-400"}`;
 	}
 }
