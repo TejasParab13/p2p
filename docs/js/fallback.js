@@ -17,7 +17,6 @@ let errorBoxRef = null;
 let connectionStatusRef = null;
 let statusTextRef = null;
 let processSendQueueCallback = null;
-let chunkAckTimeout = null;
 
 export function initFallback(
 	socket,
@@ -73,7 +72,28 @@ function throttleRender(histItem, progress) {
 	}
 }
 
-export async function sendFileFallback(file) {
+export async function sendFileFallback(file, transferId) {
+	// Find the queued entry created in main.js
+	let histItem = transferHistory.find((h) => h.id === transferId);
+	if (!histItem) {
+		// fallback: create one (shouldn't happen)
+		histItem = {
+			id: transferId,
+			name: file.name,
+			size: file.size,
+			type: file.type || "application/octet-stream",
+			direction: "sent",
+			status: "transferring",
+			progress: 0,
+			timestamp: new Date(),
+			objectUrl: null,
+		};
+		transferHistory.push(histItem);
+	} else {
+		histItem.status = "transferring";
+	}
+	renderHistory();
+
 	if (fallbackState.active && !fallbackState.peerConnected) {
 		fallbackState.peerConnected = true;
 		setConnectionStatus(
@@ -83,19 +103,6 @@ export async function sendFileFallback(file) {
 			"good",
 		);
 	}
-	const transferId = crypto.randomUUID();
-	transferHistory.push({
-		id: transferId,
-		name: file.name,
-		size: file.size,
-		type: file.type || "application/octet-stream",
-		direction: "sent",
-		status: "transferring",
-		progress: 0,
-		timestamp: new Date(),
-		objectUrl: null,
-	});
-	renderHistory();
 
 	try {
 		socketRef.emit("signal", {
@@ -144,8 +151,9 @@ export async function sendFileFallback(file) {
 			});
 			await sendChunk(data, offset);
 			offset += chunk.size || data.byteLength || 0;
-			const histItem = transferHistory.find((h) => h.id === transferId);
-			if (histItem) throttleRender(histItem, (offset / file.size) * 100);
+			const histItem2 = transferHistory.find((h) => h.id === transferId);
+			if (histItem2)
+				throttleRender(histItem2, (offset / file.size) * 100);
 		}
 
 		await new Promise((resolve, reject) => {
@@ -162,17 +170,17 @@ export async function sendFileFallback(file) {
 			);
 		});
 
-		const histItem = transferHistory.find((h) => h.id === transferId);
-		if (histItem) {
-			histItem.status = "completed";
-			histItem.progress = 100;
+		const histItem2 = transferHistory.find((h) => h.id === transferId);
+		if (histItem2) {
+			histItem2.status = "completed";
+			histItem2.progress = 100;
 			renderHistory();
 		}
 	} catch (err) {
 		console.error("Fallback send error:", err);
-		const histItem = transferHistory.find((h) => h.id === transferId);
-		if (histItem) {
-			histItem.status = "error";
+		const histItem2 = transferHistory.find((h) => h.id === transferId);
+		if (histItem2) {
+			histItem2.status = "error";
 			renderHistory();
 		}
 		showError(`Fallback send failed: ${err.message}`, errorBoxRef);

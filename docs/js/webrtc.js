@@ -65,20 +65,38 @@ function throttleRender(histItem, progress) {
 	}
 }
 
-export async function sendFileWebRTC(file) {
-	const transferId = crypto.randomUUID();
-	// Create history item with "queued" status
-	transferHistory.push({
-		id: transferId,
-		name: file.name,
-		size: file.size,
-		type: file.type || "application/octet-stream",
-		direction: "sent",
-		status: "transferring",
-		progress: 0,
-		timestamp: new Date(),
-		objectUrl: null,
-	});
+// 🔥 NEW: frame a binary chunk with a transfer ID header
+function frameChunk(id, chunkBuffer) {
+	const idBytes = new TextEncoder().encode(id);
+	const framed = new Uint8Array(
+		4 + idBytes.byteLength + chunkBuffer.byteLength,
+	);
+	new DataView(framed.buffer).setUint32(0, idBytes.byteLength, true); // little-endian
+	framed.set(idBytes, 4);
+	framed.set(new Uint8Array(chunkBuffer), 4 + idBytes.byteLength);
+	return framed.buffer;
+}
+
+export async function sendFileWebRTC(file, transferId) {
+	// Find the existing queued item created in main.js
+	let histItem = transferHistory.find((h) => h.id === transferId);
+	if (!histItem) {
+		// fallback: create one if missing (should not happen)
+		histItem = {
+			id: transferId,
+			name: file.name,
+			size: file.size,
+			type: file.type || "application/octet-stream",
+			direction: "sent",
+			status: "transferring",
+			progress: 0,
+			timestamp: new Date(),
+			objectUrl: null,
+		};
+		transferHistory.push(histItem);
+	} else {
+		histItem.status = "transferring";
+	}
 	renderHistory();
 
 	try {
@@ -102,30 +120,31 @@ export async function sendFileWebRTC(file) {
 				const chunk = await readFileChunk(
 					file.slice(offset, offset + chunkSize),
 				);
-				webrtcState.dataChannel.send(chunk);
+				// 🔥 Send the framed chunk
+				webrtcState.dataChannel.send(frameChunk(transferId, chunk));
 				offset += chunk.byteLength || chunk.size || 0;
-				const histItem = transferHistory.find(
+				const histItem2 = transferHistory.find(
 					(h) => h.id === transferId,
 				);
-				if (histItem) {
-					throttleRender(histItem, (offset / file.size) * 100);
+				if (histItem2) {
+					throttleRender(histItem2, (offset / file.size) * 100);
 				}
 			}
 		}
 		webrtcState.dataChannel.send(
 			JSON.stringify({ type: "end", id: transferId }),
 		);
-		const histItem = transferHistory.find((h) => h.id === transferId);
-		if (histItem) {
-			histItem.status = "completed";
-			histItem.progress = 100;
+		const histItem2 = transferHistory.find((h) => h.id === transferId);
+		if (histItem2) {
+			histItem2.status = "completed";
+			histItem2.progress = 100;
 			renderHistory();
 		}
 	} catch (err) {
 		console.error("WebRTC send error:", err);
-		const histItem = transferHistory.find((h) => h.id === transferId);
-		if (histItem) {
-			histItem.status = "error";
+		const histItem2 = transferHistory.find((h) => h.id === transferId);
+		if (histItem2) {
+			histItem2.status = "error";
 			renderHistory();
 		}
 		throw err;
@@ -185,8 +204,7 @@ async function handleDataMessage(event) {
 		}
 		return;
 	}
-	// Binary chunk – it must be matched to a specific transfer ID.
-	// We embed the ID in a small binary header: first 4 bytes = ID length, then ID, then chunk.
+	// Binary chunk – now framed with ID header
 	let arrayBuffer = null;
 	let byteLength = 0;
 	if (event.data instanceof ArrayBuffer) {
@@ -203,8 +221,8 @@ async function handleDataMessage(event) {
 		return;
 	}
 	if (byteLength < 4) return;
-	// Read the ID length from first 4 bytes (uint32)
-	const idLen = new Uint32Array(arrayBuffer.slice(0, 4))[0];
+	// Read the ID length from first 4 bytes (little-endian)
+	const idLen = new DataView(arrayBuffer).getUint32(0, true);
 	if (byteLength < 4 + idLen) return;
 	const id = new TextDecoder().decode(arrayBuffer.slice(4, 4 + idLen));
 	const chunkData = arrayBuffer.slice(4 + idLen);
@@ -309,10 +327,8 @@ export function createPeerConnection(
 			);
 		}
 	};
-	// Fix ICE restart: actually renegotiate
 	pc.onnegotiationneeded = async () => {
 		try {
-			// Only initiator should send new offer
 			if (!isInitiatorRef) return;
 			const offer = await pc.createOffer({ iceRestart: true });
 			await pc.setLocalDescription(offer);

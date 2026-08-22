@@ -31,9 +31,15 @@ io.on("connection", (socket) => {
 		}
 	});
 
-	socket.on("signal", (data) => {
-		if (!data || typeof data.room !== "string" || !data.signal) return;
+	// 🔥 Fixed: accept and invoke the ack callback
+	socket.on("signal", (data, callback) => {
+		if (!data || typeof data.room !== "string" || !data.signal) {
+			if (typeof callback === "function")
+				callback({ error: "invalid signal" });
+			return;
+		}
 		socket.to(data.room.trim()).emit("signal", data.signal);
+		if (typeof callback === "function") callback({ ok: true });
 	});
 });
 

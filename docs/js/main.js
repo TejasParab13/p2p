@@ -62,6 +62,7 @@ const isInitiator = Boolean(urlRoom);
 const currentRoom = urlRoom || Math.random().toString(36).substring(2, 9);
 let currentMode = "webrtc";
 let retryTimeout = null;
+let retryStartedAt = null;
 const MAX_RETRY_MS = 30000; // 30s
 
 if (roomCodeDisplay) roomCodeDisplay.textContent = currentRoom;
@@ -204,11 +205,27 @@ initFallback(
 
 async function processSendQueue() {
 	if (webrtcState.isSending || webrtcState.sendQueue.length === 0) return;
+
+	// If no active connection, retry (with timeout)
 	if (!fallbackState.active) {
 		if (
 			!webrtcState.dataChannel ||
 			webrtcState.dataChannel.readyState !== "open"
 		) {
+			if (!retryStartedAt) retryStartedAt = Date.now();
+			if (Date.now() - retryStartedAt > MAX_RETRY_MS) {
+				// timeout – mark the first file as error and remove it
+				const item = webrtcState.sendQueue.shift();
+				const histItem = transferHistory.find((h) => h.id === item.id);
+				if (histItem) {
+					histItem.status = "error";
+					renderHistory();
+				}
+				showError("Connection timeout. Please try again.", errorBox);
+				retryStartedAt = null;
+				processSendQueue(); // continue with next
+				return;
+			}
 			if (retryTimeout) clearTimeout(retryTimeout);
 			retryTimeout = setTimeout(() => {
 				retryTimeout = null;
@@ -217,22 +234,37 @@ async function processSendQueue() {
 			return;
 		}
 	}
+	retryStartedAt = null; // reset if connection is open
+
 	webrtcState.isSending = true;
-	const file = webrtcState.sendQueue.shift();
+	const item = webrtcState.sendQueue.shift(); // { file, id }
+	const file = item.file;
+	const transferId = item.id;
 	try {
 		if (
 			webrtcState.dataChannel &&
 			webrtcState.dataChannel.readyState === "open" &&
 			!fallbackState.active
 		) {
-			await sendFileWebRTC(file);
+			await sendFileWebRTC(file, transferId);
 		} else if (fallbackState.active) {
-			await sendFileFallback(file);
+			await sendFileFallback(file, transferId);
 		} else {
 			showError("No active connection", errorBox);
+			// mark as error
+			const histItem = transferHistory.find((h) => h.id === transferId);
+			if (histItem) {
+				histItem.status = "error";
+				renderHistory();
+			}
 		}
 	} catch (err) {
 		console.error("Send error:", err);
+		const histItem = transferHistory.find((h) => h.id === transferId);
+		if (histItem) {
+			histItem.status = "error";
+			renderHistory();
+		}
 	} finally {
 		webrtcState.isSending = false;
 		processSendQueue();
@@ -416,12 +448,12 @@ async function handleFileSelect(event) {
 		event.target.value = "";
 		return;
 	}
-	for (let i = 0; i < files.length; i++) webrtcState.sendQueue.push(files[i]);
-	event.target.value = "";
-	// Create queued history items for each file to avoid silent drop
+	// For each file, generate an ID, push into queue, and create a queued history entry
 	for (const file of files) {
+		const id = crypto.randomUUID();
+		webrtcState.sendQueue.push({ file, id });
 		transferHistory.push({
-			id: crypto.randomUUID(),
+			id: id,
 			name: file.name,
 			size: file.size,
 			type: file.type || "application/octet-stream",
@@ -433,6 +465,7 @@ async function handleFileSelect(event) {
 		});
 	}
 	renderHistory();
+	event.target.value = "";
 	processSendQueue();
 }
 
@@ -452,12 +485,11 @@ if (dropZone && fileInputPC) {
 		e.preventDefault();
 		dropZone.classList.remove("drop-zone-active");
 		if (e.dataTransfer.files.length) {
-			for (let i = 0; i < e.dataTransfer.files.length; i++)
-				webrtcState.sendQueue.push(e.dataTransfer.files[i]);
-			// Also create queued items for dropped files
 			for (const file of e.dataTransfer.files) {
+				const id = crypto.randomUUID();
+				webrtcState.sendQueue.push({ file, id });
 				transferHistory.push({
-					id: crypto.randomUUID(),
+					id: id,
 					name: file.name,
 					size: file.size,
 					type: file.type || "application/octet-stream",
