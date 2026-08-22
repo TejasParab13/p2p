@@ -129,7 +129,6 @@ function applyMode() {
 	initiatorStarted = false;
 
 	if (mode === "fallback") {
-		// Pass whether we had a peer already
 		activateFallback(hadDirectConnection);
 		if (!isInitiator) {
 			socket.emit("signal", {
@@ -137,7 +136,6 @@ function applyMode() {
 				signal: { type: "mode-change", mode: "fallback" },
 			});
 		}
-		// If we didn't have a peer, set status to waiting
 		if (!hadDirectConnection) {
 			setConnectionStatus(
 				connectionStatus,
@@ -254,6 +252,18 @@ async function processSendQueue() {
 async function handleSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
 
+	// Handle mode sync from the other side
+	if (signal.type === "mode-sync" && typeof signal.mode === "string") {
+		console.log("Mode sync received:", signal.mode);
+		// Only switch if we are not already in that mode and we are the PC (non-initiator)
+		// or if we are the initiator but we haven't started yet
+		const currentMode = getSelectedMode();
+		if (currentMode !== signal.mode) {
+			setModeFromSignal(signal.mode);
+		}
+		return;
+	}
+
 	if (signal.type === "mode-change" && typeof signal.mode === "string") {
 		setModeFromSignal(signal.mode);
 		return;
@@ -347,6 +357,13 @@ function makeQr(roomId) {
 function joinAndMaybeStart() {
 	connectErrorCount = 0;
 	socket.emit("join-room", currentRoom);
+
+	// Send our current mode to the room so the other side can sync
+	socket.emit("signal", {
+		room: currentRoom,
+		signal: { type: "mode-sync", mode: getSelectedMode() },
+	});
+
 	if (isInitiator) {
 		setConnectionStatus(
 			connectionStatus,
