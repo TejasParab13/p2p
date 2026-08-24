@@ -414,10 +414,18 @@ initFallback(
 );
 
 // ============================================================
-// 8. File send queue (unchanged)
+// 8. File send queue (with logging)
 // ============================================================
 async function processSendQueue() {
-	if (webrtcState.isSending || webrtcState.sendQueue.length === 0) return;
+	if (webrtcState.isSending || webrtcState.sendQueue.length === 0) {
+		console.log("[processSendQueue] idle or no items");
+		return;
+	}
+	console.log(
+		"[processSendQueue] processing, queue length:",
+		webrtcState.sendQueue.length,
+	);
+
 	if (!fallbackState.active) {
 		if (
 			!webrtcState.dataChannel ||
@@ -449,6 +457,12 @@ async function processSendQueue() {
 	const item = webrtcState.sendQueue.shift();
 	const file = item.file;
 	const transferId = item.id;
+	console.log(
+		"[processSendQueue] sending file:",
+		file.name,
+		"id:",
+		transferId,
+	);
 	try {
 		if (
 			webrtcState.dataChannel &&
@@ -467,7 +481,7 @@ async function processSendQueue() {
 			}
 		}
 	} catch (err) {
-		console.error("Send error:", err);
+		console.error("[processSendQueue] send error:", err);
 		const histItem = transferHistory.find((h) => h.id === transferId);
 		if (histItem) {
 			histItem.status = "error";
@@ -671,12 +685,14 @@ if (!window.RTCPeerConnection)
 updateView();
 
 // ============================================================
-// 13. File selection handlers (delegated)
+// 13. File selection handlers (delegated) with logging
 // ============================================================
 async function handleFileSelect(event) {
 	const input = event.target;
 	const files = input.files;
 	if (!files || files.length === 0) return;
+	console.log("[handleFileSelect] files selected:", files.length);
+
 	const hasWebRTC =
 		webrtcState.dataChannel &&
 		webrtcState.dataChannel.readyState === "open";
@@ -734,6 +750,7 @@ document.addEventListener("drop", (e) => {
 		dropZone.classList.remove("drop-zone-active");
 		const files = e.dataTransfer.files;
 		if (files.length) {
+			console.log("[drop] files dropped:", files.length);
 			const hasWebRTC =
 				webrtcState.dataChannel &&
 				webrtcState.dataChannel.readyState === "open";

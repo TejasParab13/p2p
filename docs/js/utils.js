@@ -54,9 +54,4 @@ export function setConnectionStatus(connectionStatus, statusText, text, state) {
 		statusText.textContent = text;
 		statusText.className = `font-medium mb-4 text-sm ${state === "good" ? "text-emerald-400" : state === "bad" ? "text-red-400" : "text-indigo-400 animate-pulse"}`;
 	}
-	const infoEl = document.getElementById("connection-info");
-	if (infoEl) {
-		infoEl.textContent = text;
-		infoEl.className = `text-center text-xs leading-tight ${state === "good" ? "text-emerald-400" : state === "bad" ? "text-red-400" : "text-zinc-400"}`;
-	}
 }
