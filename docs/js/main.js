@@ -40,9 +40,7 @@ const mobileHostView = document.getElementById("mobile-host-view");
 const mobileClientView = document.getElementById("mobile-client-view");
 
 const errorBox = document.getElementById("error-box");
-const statusText = document.getElementById("status");
 const roomUrlText = document.getElementById("room-url");
-const connectionStatus = document.getElementById("connection-status");
 
 // ============================================================
 // 2. Socket & room logic
@@ -82,6 +80,16 @@ function injectComponents(viewId, mode = currentMode) {
 		const dropId = `drop-${viewId}`;
 		const inputId = `file-input-${viewId}`;
 		dropContainer.innerHTML = DropZone({ id: dropId, inputId: inputId });
+		// Attach a direct change listener to the file input inside this drop zone
+		const fileInput = dropContainer.querySelector(`#${inputId}`);
+		if (fileInput) {
+			// Remove old listener to avoid duplicates (if any)
+			fileInput.removeEventListener("change", handleFileSelectDirect);
+			fileInput.addEventListener("change", handleFileSelectDirect);
+			console.log(
+				`[injectComponents] attached direct listener to ${inputId}`,
+			);
+		}
 	}
 	if (historyContainer) {
 		const listId = `history-list-${viewId}`;
@@ -125,10 +133,10 @@ function updateView() {
 			const roomDisplay = document.getElementById("room-code-display");
 			if (roomDisplay) roomDisplay.textContent = currentRoom;
 			connStatusEl = document.getElementById("connection-info");
-			statusTextEl = statusText; // same as document.getElementById("status")
+			statusTextEl = null; // no global status text element
 			setConnectionStatus(
 				connStatusEl,
-				statusTextEl,
+				null,
 				"Waiting for phone to scan...",
 				"warn",
 			);
@@ -162,6 +170,12 @@ function updateView() {
 		}
 	}
 
+	// Log which status elements are being set
+	console.log("[updateView] setting status elements:", {
+		connStatusEl: connStatusEl?.id || "null",
+		statusTextEl: statusTextEl?.id || "null",
+	});
+
 	// **Update the status element references used by WebRTC and Fallback modules**
 	setWebRTCStatusElements(connStatusEl, statusTextEl);
 	setFallbackStatusElements(connStatusEl, statusTextEl);
@@ -191,6 +205,15 @@ function updateView() {
 		});
 		renderHistory();
 	}
+}
+
+// ----- Direct file input handler (attached after injection) -----
+function handleFileSelectDirect(event) {
+	console.log(
+		"[handleFileSelectDirect] event triggered on:",
+		event.target.id,
+	);
+	handleFileSelect(event);
 }
 
 // ----- Listeners (delegated) -----
@@ -401,20 +424,13 @@ initWebRTC(
 	currentRoom,
 	isInitiator,
 	errorBox,
-	connectionStatus,
-	statusText,
+	null, // connectionStatus – will be updated later
+	null, // statusText – will be updated later
 );
-initFallback(
-	socket,
-	currentRoom,
-	errorBox,
-	connectionStatus,
-	statusText,
-	processSendQueue,
-);
+initFallback(socket, currentRoom, errorBox, null, null, processSendQueue);
 
 // ============================================================
-// 8. File send queue (with logging)
+// 8. File send queue (with logging and safety checks)
 // ============================================================
 async function processSendQueue() {
 	if (webrtcState.isSending || webrtcState.sendQueue.length === 0) {
@@ -426,11 +442,16 @@ async function processSendQueue() {
 		webrtcState.sendQueue.length,
 	);
 
+	// Safety: if no active connection, retry or fail
 	if (!fallbackState.active) {
 		if (
 			!webrtcState.dataChannel ||
 			webrtcState.dataChannel.readyState !== "open"
 		) {
+			console.log(
+				"[processSendQueue] no open data channel, readyState:",
+				webrtcState.dataChannel?.readyState || "null",
+			);
 			if (!retryStartedAt) retryStartedAt = Date.now();
 			if (Date.now() - retryStartedAt > MAX_RETRY_MS) {
 				const item = webrtcState.sendQueue.shift();
@@ -469,10 +490,13 @@ async function processSendQueue() {
 			webrtcState.dataChannel.readyState === "open" &&
 			!fallbackState.active
 		) {
+			console.log("[processSendQueue] using WebRTC to send");
 			await sendFileWebRTC(file, transferId);
 		} else if (fallbackState.active) {
+			console.log("[processSendQueue] using Fallback to send");
 			await sendFileFallback(file, transferId);
 		} else {
+			console.error("[processSendQueue] no active connection!");
 			showError("No active connection", errorBox);
 			const histItem = transferHistory.find((h) => h.id === transferId);
 			if (histItem) {
@@ -650,12 +674,7 @@ function joinAndMaybeStart() {
 			room: currentRoom,
 			signal: { type: "request-mode" },
 		});
-		setConnectionStatus(
-			connectionStatus,
-			statusText,
-			"Waiting for PC mode...",
-			"warn",
-		);
+		// status will be updated by updateView when it runs
 	} else {
 		// Host: apply mode after a short delay to ensure UI is ready
 		setTimeout(() => {
@@ -685,7 +704,7 @@ if (!window.RTCPeerConnection)
 updateView();
 
 // ============================================================
-// 13. File selection handlers (delegated) with logging
+// 13. File selection handlers (direct listeners only)
 // ============================================================
 async function handleFileSelect(event) {
 	const input = event.target;
@@ -697,6 +716,12 @@ async function handleFileSelect(event) {
 		webrtcState.dataChannel &&
 		webrtcState.dataChannel.readyState === "open";
 	const hasFallback = fallbackState.active;
+	console.log(
+		"[handleFileSelect] hasWebRTC:",
+		hasWebRTC,
+		"hasFallback:",
+		hasFallback,
+	);
 	if (!hasWebRTC && !hasFallback) {
 		showError(
 			"No active connection. Please ensure you are connected or switch to Relay mode.",
@@ -725,10 +750,7 @@ async function handleFileSelect(event) {
 	processSendQueue();
 }
 
-document.addEventListener("change", (e) => {
-	if (e.target.matches('input[type="file"]')) handleFileSelect(e);
-});
-
+// Drag & drop delegation
 document.addEventListener("dragover", (e) => {
 	const dropZone = e.target.closest('[id^="drop-"]');
 	if (dropZone) {
