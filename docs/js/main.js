@@ -51,7 +51,7 @@ let initiatorStarted = false;
 let connectErrorCount = 0;
 const params = new URLSearchParams(window.location.search);
 const urlRoom = (params.get("room") || "").trim();
-const isInitiator = Boolean(urlRoom);
+const isInitiator = Boolean(urlRoom); // true → client (phone), false → host (PC)
 const currentRoom = urlRoom || Math.random().toString(36).substring(2, 9);
 let currentMode = "webrtc";
 let retryTimeout = null;
@@ -66,7 +66,6 @@ function isMobileDevice() {
 }
 
 function injectComponents(viewId, mode = currentMode) {
-	// Determine which containers to inject based on viewId
 	const modeContainer = document.getElementById(`${viewId}-mode-container`);
 	const dropContainer = document.getElementById(`${viewId}-drop-container`);
 	const historyContainer = document.getElementById(
@@ -77,7 +76,6 @@ function injectComponents(viewId, mode = currentMode) {
 		modeContainer.innerHTML = ModeSelector({ selected: mode });
 	}
 	if (dropContainer) {
-		// Use unique IDs for each drop zone
 		const dropId = `drop-${viewId}`;
 		const inputId = `file-input-${viewId}`;
 		dropContainer.innerHTML = DropZone({ id: dropId, inputId: inputId });
@@ -96,14 +94,12 @@ function updateView() {
 	);
 
 	if (!isInitiator) {
-		// HOST
+		// HOST (PC)
 		if (isMobileDevice()) {
 			mobileHostView.classList.remove("hidden");
 			injectComponents("mobile-host");
-			// QR code generation (need to find the element in this view)
 			const qrEl = document.getElementById("qrcode-mobile");
 			if (qrEl) makeQr(currentRoom, qrEl);
-			// Update room display
 			const roomDisplay = document.getElementById(
 				"room-code-display-mobile",
 			);
@@ -117,10 +113,8 @@ function updateView() {
 		} else {
 			pcHostView.classList.remove("hidden");
 			injectComponents("pc-host");
-			// QR code generation
 			const qrEl = document.getElementById("qrcode");
 			if (qrEl) makeQr(currentRoom, qrEl);
-			// Room code display
 			const roomDisplay = document.getElementById("room-code-display");
 			if (roomDisplay) roomDisplay.textContent = currentRoom;
 			setConnectionStatus(
@@ -131,7 +125,7 @@ function updateView() {
 			);
 		}
 	} else {
-		// CLIENT
+		// CLIENT (phone)
 		if (isMobileDevice()) {
 			mobileClientView.classList.remove("hidden");
 			injectComponents("mobile-client");
@@ -153,14 +147,11 @@ function updateView() {
 		}
 	}
 
-	// After injecting components, re-attach event listeners for file inputs and drop zones
-	attachFileHandlers();
+	// Attach listeners
 	attachModeListeners();
 	attachFilterListeners();
 
-	// Re-initialise history module with the new history list IDs
-	// We need to map the current view's history list and empty IDs.
-	// We'll use a consistent naming pattern.
+	// Re-init history
 	const viewPrefix = isInitiator
 		? isMobileDevice()
 			? "mobile-client"
@@ -173,13 +164,9 @@ function updateView() {
 	const listEl = document.getElementById(listId);
 	const emptyEl = document.getElementById(emptyId);
 	if (listEl && emptyEl) {
-		// history.js expects both PC and mobile list elements – we'll store them accordingly.
-		// We'll assign the current view's list to both PC and mobile references so history renders in the visible view.
-		// This is a bit hacky but works because only one view is visible.
-		// We'll update the module's internal refs.
 		import("./history.js").then((module) => {
 			module.historyListPC = listEl;
-			module.historyListMobile = listEl; // both point to the same visible list
+			module.historyListMobile = listEl;
 			module.historyEmptyPC = emptyEl;
 			module.historyEmptyMobile = emptyEl;
 			module.renderHistory();
@@ -187,17 +174,9 @@ function updateView() {
 	}
 }
 
-// ----- Attach file input and drop zone handlers (delegated) -----
-function attachFileHandlers() {
-	// Use event delegation on document
-	// We already have delegated listeners in place – we'll add them once.
-	// Since we use delegation, we don't need to reattach per view.
-}
-
-// ----- Mode listener (delegated) -----
+// ----- Listeners (delegated) -----
 function attachModeListeners() {
-	const radios = document.querySelectorAll('input[name="mode"]');
-	radios.forEach((radio) => {
+	document.querySelectorAll('input[name="mode"]').forEach((radio) => {
 		radio.removeEventListener("change", handleModeChange);
 		radio.addEventListener("change", handleModeChange);
 	});
@@ -206,30 +185,14 @@ function attachModeListeners() {
 function handleModeChange(e) {
 	const radio = e.target;
 	if (radio.checked) {
-		// Update slider if present
-		const slider = document.getElementById("mode-slider");
-		if (slider) {
-			const selected = document.querySelector(
-				'input[name="mode"]:checked',
-			);
-			if (selected) {
-				const labels = document.querySelectorAll("label[data-mode]");
-				let index = 0;
-				for (const label of labels) {
-					if (label.querySelector('input[type="radio"]') === selected)
-						break;
-					index++;
-				}
-				slider.style.transform = `translateX(${index * 100}%)`;
-			}
-		}
+		currentMode = radio.value;
+		console.log("[Mode] changed to:", currentMode);
 		applyMode();
 	}
 }
 
 function attachFilterListeners() {
-	const radios = document.querySelectorAll('input[name="filter"]');
-	radios.forEach((radio) => {
+	document.querySelectorAll('input[name="filter"]').forEach((radio) => {
 		radio.removeEventListener("change", handleFilterChange);
 		radio.addEventListener("change", handleFilterChange);
 	});
@@ -240,7 +203,6 @@ function handleFilterChange(e) {
 	if (radio.checked) setFilter(radio.value);
 }
 
-// Window resize
 let resizeTimeout;
 window.addEventListener("resize", () => {
 	clearTimeout(resizeTimeout);
@@ -251,7 +213,6 @@ window.addEventListener("resize", () => {
 // 4. Join room (used by all join buttons)
 // ============================================================
 window.joinRoom = function () {
-	// Find the visible room code input (could be in any view)
 	const inputs = document.querySelectorAll('input[id^="room-code-input"]');
 	let input = null;
 	for (const el of inputs) {
@@ -275,7 +236,7 @@ window.joinRoom = function () {
 };
 
 // ============================================================
-// 5. Mode management
+// 5. Mode management (core)
 // ============================================================
 function getSelectedMode() {
 	const checked = document.querySelector('input[name="mode"]:checked');
@@ -284,6 +245,7 @@ function getSelectedMode() {
 
 function setModeFromSignal(mode) {
 	if (mode !== "webrtc" && mode !== "fallback") return;
+	console.log("[Signal] mode-change received:", mode);
 	currentMode = mode;
 	document.querySelectorAll('input[name="mode"]').forEach((radio) => {
 		radio.checked = radio.value === mode;
@@ -302,23 +264,28 @@ function setModeFromSignal(mode) {
 
 function applyMode() {
 	const mode = getSelectedMode();
-	const hadDirectConnection = !!(
-		webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open"
-	);
-	if (mode === "fallback" && hadDirectConnection) setSwitchingToRelay(true);
+	console.log("[applyMode] current mode:", mode, "isInitiator:", isInitiator);
+
+	// Reset state for a clean start
 	resetWebRTC();
 	resetFallback();
 	initiatorStarted = false;
 
 	if (mode === "fallback") {
-		activateFallback(hadDirectConnection);
+		// Activate fallback mode
+		const hadDirect = !!(
+			webrtcState.dataChannel &&
+			webrtcState.dataChannel.readyState === "open"
+		);
+		activateFallback(hadDirect);
 		if (!isInitiator) {
+			// Host notifies client to switch to fallback
 			socket.emit("signal", {
 				room: currentRoom,
 				signal: { type: "mode-change", mode: "fallback" },
 			});
 		}
-		if (!hadDirectConnection && !fallbackState.peerConnected) {
+		if (!hadDirect && !fallbackState.peerConnected) {
 			setConnectionStatus(
 				connectionStatus,
 				statusText,
@@ -327,38 +294,60 @@ function applyMode() {
 			);
 		}
 	} else {
+		// WebRTC mode
 		if (isInitiator) {
+			// Client: start the offer
+			console.log("[applyMode] Client starting WebRTC initiator...");
 			startInitiator();
 		} else {
+			// Host: wait for offer, but also send a mode-change to client to trigger its offer
+			console.log(
+				"[applyMode] Host sending mode-change signal to client",
+			);
+			socket.emit("signal", {
+				room: currentRoom,
+				signal: { type: "mode-change", mode: "webrtc" },
+			});
 			setConnectionStatus(
 				connectionStatus,
 				statusText,
 				"Waiting for phone...",
 				"warn",
 			);
-			socket.emit("signal", {
-				room: currentRoom,
-				signal: { type: "mode-change", mode: "webrtc" },
-			});
 		}
 	}
 }
 
 // ============================================================
-// 6. WebRTC initiator
+// 6. WebRTC initiator (client)
 // ============================================================
 function startInitiator() {
-	if (initiatorStarted || !window.RTCPeerConnection) return;
-	if (getSelectedMode() === "fallback") return;
+	if (initiatorStarted) {
+		console.log("[startInitiator] already started, skipping");
+		return;
+	}
+	if (!window.RTCPeerConnection) {
+		showError("WebRTC not supported. Use Relay mode.", errorBox);
+		return;
+	}
+	if (getSelectedMode() === "fallback") {
+		console.log("[startInitiator] skipping because mode is fallback");
+		return;
+	}
+
+	console.log("[startInitiator] creating offer...");
 	initiatorStarted = true;
+
 	const pc = createPeerConnection(currentRoom, null, processSendQueue);
 	webrtcState.peerConnection = pc;
 	const dc = pc.createDataChannel("file-transfer");
 	setupDataChannel(dc, processSendQueue);
 	webrtcState.dataChannel = dc;
+
 	pc.createOffer()
 		.then((offer) => pc.setLocalDescription(offer))
-		.then(() =>
+		.then(() => {
+			console.log("[startInitiator] offer created, sending to host");
 			socket.emit("signal", {
 				room: currentRoom,
 				signal: {
@@ -367,14 +356,15 @@ function startInitiator() {
 						sdp: pc.localDescription.sdp,
 					},
 				},
-			}),
-		)
+			});
+		})
 		.catch((err) => {
-			console.error("Offer error:", err);
+			console.error("[startInitiator] error:", err);
 			showError(
 				"Failed to start WebRTC offer. Try Relay mode.",
 				errorBox,
 			);
+			initiatorStarted = false;
 		});
 }
 
@@ -465,10 +455,15 @@ async function processSendQueue() {
 }
 
 // ============================================================
-// 9. Signal handler (unchanged)
+// 9. Signal handler (receives SDP/ICE)
 // ============================================================
 async function handleSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
+	console.log(
+		"[handleSignal] received:",
+		signal.type || (signal.sdp ? "sdp" : "candidate"),
+	);
+
 	if (signal.type === "request-mode") {
 		if (!isInitiator) {
 			const mode = getSelectedMode();
@@ -496,52 +491,91 @@ async function handleSignal(signal) {
 		handleFallbackSignal(signal);
 		return;
 	}
+
+	// WebRTC signals – ignore if in fallback mode
 	if (getSelectedMode() === "fallback") {
-		console.log("Ignoring WebRTC signal because fallback is active");
+		console.log(
+			"[handleSignal] ignoring WebRTC signal because mode is fallback",
+		);
 		return;
 	}
-	if (!window.RTCPeerConnection) return;
-	if (!webrtcState.peerConnection && !isInitiator) {
-		webrtcState.peerConnection = createPeerConnection(
-			currentRoom,
-			null,
-			processSendQueue,
-		);
-	}
-	if (!webrtcState.peerConnection) return;
+
+	// SDP handling
 	if (signal.sdp) {
+		// Ensure we have a peer connection
+		if (!webrtcState.peerConnection) {
+			if (isInitiator) {
+				// Client already has PC from startInitiator
+				console.warn(
+					"[handleSignal] no peer connection on client, but should exist",
+				);
+				return;
+			} else {
+				// Host: create PC when receiving offer
+				console.log(
+					"[handleSignal] host creating peer connection for incoming offer",
+				);
+				webrtcState.peerConnection = createPeerConnection(
+					currentRoom,
+					null,
+					processSendQueue,
+				);
+			}
+		}
+
+		const pc = webrtcState.peerConnection;
 		if (signal.sdp.type === "offer") {
-			if (webrtcState.peerConnection.signalingState !== "stable") return;
-			await webrtcState.peerConnection.setRemoteDescription(
+			if (pc.signalingState !== "stable") {
+				console.warn(
+					"[handleSignal] offer ignored, signaling state:",
+					pc.signalingState,
+				);
+				return;
+			}
+			console.log("[handleSignal] setting remote description (offer)");
+			await pc.setRemoteDescription(
 				new RTCSessionDescription(signal.sdp),
 			);
 			await flushPendingCandidates();
-			const answer = await webrtcState.peerConnection.createAnswer();
-			await webrtcState.peerConnection.setLocalDescription(answer);
+			const answer = await pc.createAnswer();
+			await pc.setLocalDescription(answer);
+			console.log("[handleSignal] sending answer");
 			socket.emit("signal", {
 				room: currentRoom,
 				signal: {
 					sdp: {
-						type: webrtcState.peerConnection.localDescription.type,
-						sdp: webrtcState.peerConnection.localDescription.sdp,
+						type: pc.localDescription.type,
+						sdp: pc.localDescription.sdp,
 					},
 				},
 			});
 		} else if (signal.sdp.type === "answer") {
-			if (
-				webrtcState.peerConnection.signalingState !== "have-local-offer"
-			)
+			if (pc.signalingState !== "have-local-offer") {
+				console.warn(
+					"[handleSignal] answer ignored, signaling state:",
+					pc.signalingState,
+				);
 				return;
-			await webrtcState.peerConnection.setRemoteDescription(
+			}
+			console.log("[handleSignal] setting remote description (answer)");
+			await pc.setRemoteDescription(
 				new RTCSessionDescription(signal.sdp),
 			);
 			await flushPendingCandidates();
 		}
 	} else if (signal.candidate) {
-		if (webrtcState.peerConnection.remoteDescription) {
-			await webrtcState.peerConnection.addIceCandidate(
-				new RTCIceCandidate(signal.candidate),
-			);
+		// ICE candidate handling
+		const pc = webrtcState.peerConnection;
+		if (!pc) {
+			console.warn("[handleSignal] no peer connection for candidate");
+			return;
+		}
+		if (pc.remoteDescription) {
+			try {
+				await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+			} catch (e) {
+				console.warn("[handleSignal] failed to add ICE candidate", e);
+			}
 		} else {
 			webrtcState.pendingCandidates.push(signal.candidate);
 		}
@@ -549,7 +583,7 @@ async function handleSignal(signal) {
 }
 
 // ============================================================
-// 10. QR Code generator (pass the target element)
+// 10. QR Code generator
 // ============================================================
 function makeQr(roomId, qrEl) {
 	if (!qrEl) {
@@ -594,15 +628,16 @@ function joinAndMaybeStart() {
 			"warn",
 		);
 	} else {
+		// Host: apply mode now (this will also send mode-change to client)
 		applyMode();
 	}
 }
 
-socket.on("signal", (signal) =>
+socket.on("signal", (signal) => {
 	handleSignal(signal).catch((err) =>
 		showError("Signaling error: " + err.message, errorBox),
-	),
-);
+	);
+});
 socket.on("connect", joinAndMaybeStart);
 socket.on("connect_error", (err) => {
 	connectErrorCount += 1;
@@ -662,7 +697,6 @@ document.addEventListener("change", (e) => {
 	if (e.target.matches('input[type="file"]')) handleFileSelect(e);
 });
 
-// Drop zone delegation
 document.addEventListener("dragover", (e) => {
 	const dropZone = e.target.closest('[id^="drop-"]');
 	if (dropZone) {
@@ -717,15 +751,13 @@ document.addEventListener("drop", (e) => {
 });
 
 // ============================================================
-// 14. Expose clearHistory globally
+// 14. Clear history & load
 // ============================================================
 window.clearHistory = clearHistory;
 
-// ============================================================
-// 15. Load event
-// ============================================================
 window.addEventListener("load", () => {
 	attachModeListeners();
 	attachFilterListeners();
+	// Ensure mode is applied after UI is ready
 	applyMode();
 });
