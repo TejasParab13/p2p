@@ -59,6 +59,10 @@ let retryStartedAt = null;
 const MAX_RETRY_MS = 30000;
 let modeChangeInProgress = false;
 
+// ---- Store current status elements for refresh ----
+let currentConnStatusEl = null;
+let currentStatusTextEl = null;
+
 // ============================================================
 // 3. Device detection & view updater
 // ============================================================
@@ -144,6 +148,10 @@ function updateView() {
 		}
 	}
 
+	// Store status elements for later refresh
+	currentConnStatusEl = connStatusEl;
+	currentStatusTextEl = statusTextEl;
+
 	// Update status element references for WebRTC and Fallback modules
 	setWebRTCStatusElements(connStatusEl, statusTextEl);
 	setFallbackStatusElements(connStatusEl, statusTextEl);
@@ -174,8 +182,14 @@ function updateView() {
 		renderHistory();
 	}
 
-	// ---- Set status based on current connection state ----
-	updateConnectionStatus(connStatusEl, statusTextEl);
+	// ---- Refresh status to reflect current connection state ----
+	refreshStatus();
+}
+
+// ---- Helper to refresh status using stored elements ----
+function refreshStatus() {
+	if (!currentConnStatusEl) return;
+	updateConnectionStatus(currentConnStatusEl, currentStatusTextEl);
 }
 
 // ---- Helper to set status based on actual connection state ----
@@ -312,7 +326,7 @@ function applyMode() {
 	const mode = getSelectedMode();
 	console.log("[applyMode] current mode:", mode, "isInitiator:", isInitiator);
 
-	// If already connected in this mode, do nothing
+	// If already connected in this mode, do nothing but still refresh status
 	if (
 		mode === currentMode &&
 		webrtcState.dataChannel &&
@@ -320,6 +334,7 @@ function applyMode() {
 	) {
 		console.log("[applyMode] already connected in mode:", mode);
 		modeChangeInProgress = false;
+		refreshStatus();
 		return;
 	}
 
@@ -355,7 +370,10 @@ function applyMode() {
 			});
 		}
 	}
+
 	modeChangeInProgress = false;
+	// Refresh status after mode change
+	refreshStatus();
 }
 
 // ============================================================
