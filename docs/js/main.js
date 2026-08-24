@@ -58,6 +58,7 @@ let retryTimeout = null;
 let retryStartedAt = null;
 const MAX_RETRY_MS = 30000;
 let modeChangeInProgress = false;
+let hasPeer = false; // true when we receive any signal from the other peer
 
 // ---- Store current status elements for refresh ----
 let currentConnStatusEl = null;
@@ -194,41 +195,41 @@ function refreshStatus() {
 
 // ---- Helper to set status based on actual connection state ----
 function updateConnectionStatus(connStatusEl, statusTextEl) {
-	// If fallback mode is selected, show relay status regardless of WebRTC state
-	if (currentMode === "fallback") {
-		setConnectionStatus(
-			connStatusEl,
-			statusTextEl,
-			"Connected via Relay",
-			"good",
-		);
-		return;
-	}
-	// Otherwise, check WebRTC connection
+	// Check real connectivity
 	const isWebRTCConnected =
 		webrtcState.dataChannel &&
 		webrtcState.dataChannel.readyState === "open";
-	if (isWebRTCConnected) {
-		setConnectionStatus(
-			connStatusEl,
-			statusTextEl,
-			"Connected Directly via P2P!",
-			"good",
-		);
-	} else {
-		// No connection yet
-		if (!isInitiator) {
+	const isRelayConnected = fallbackState.active && hasPeer;
+
+	if (currentMode === "webrtc") {
+		if (isWebRTCConnected) {
 			setConnectionStatus(
 				connStatusEl,
 				statusTextEl,
-				"Waiting for phone to scan...",
-				"warn",
+				"Connected Directly via P2P!",
+				"good",
 			);
 		} else {
 			setConnectionStatus(
 				connStatusEl,
 				statusTextEl,
-				"Connecting to PC...",
+				"Waiting for peer...",
+				"warn",
+			);
+		}
+	} else if (currentMode === "fallback") {
+		if (isRelayConnected) {
+			setConnectionStatus(
+				connStatusEl,
+				statusTextEl,
+				"Connected via Relay",
+				"good",
+			);
+		} else {
+			setConnectionStatus(
+				connStatusEl,
+				statusTextEl,
+				"Waiting for peer...",
 				"warn",
 			);
 		}
@@ -262,6 +263,8 @@ function handleModeChange(e) {
 		}
 		console.log("[Mode] changed to:", newMode);
 		currentMode = newMode;
+		// Reset peer flag when switching modes (so we don't falsely show connected)
+		hasPeer = false;
 		applyMode();
 	}
 }
@@ -326,6 +329,7 @@ function setModeFromSignal(mode) {
 	}
 	console.log("[Signal] mode-change received:", mode);
 	currentMode = mode;
+	hasPeer = true; // receiving mode-change means the other peer is present
 	document.querySelectorAll('input[name="mode"]').forEach((radio) => {
 		radio.checked = radio.value === mode;
 	});
@@ -544,6 +548,9 @@ async function handleSignal(signal) {
 		"[handleSignal] received:",
 		signal.type || (signal.sdp ? "sdp" : "candidate"),
 	);
+
+	// Any signal from the other peer confirms presence
+	hasPeer = true;
 
 	if (signal.type === "request-mode") {
 		if (!isInitiator) {
