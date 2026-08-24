@@ -80,10 +80,8 @@ function injectComponents(viewId, mode = currentMode) {
 		const dropId = `drop-${viewId}`;
 		const inputId = `file-input-${viewId}`;
 		dropContainer.innerHTML = DropZone({ id: dropId, inputId: inputId });
-		// Attach a direct change listener to the file input inside this drop zone
 		const fileInput = dropContainer.querySelector(`#${inputId}`);
 		if (fileInput) {
-			// Remove old listener to avoid duplicates (if any)
 			fileInput.removeEventListener("change", handleFileSelectDirect);
 			fileInput.addEventListener("change", handleFileSelectDirect);
 			console.log(
@@ -119,12 +117,6 @@ function updateView() {
 			if (roomDisplay) roomDisplay.textContent = currentRoom;
 			connStatusEl = document.getElementById("connection-status-mobile");
 			statusTextEl = null;
-			setConnectionStatus(
-				connStatusEl,
-				null,
-				"Waiting for phone to scan...",
-				"warn",
-			);
 		} else {
 			pcHostView.classList.remove("hidden");
 			injectComponents("pc-host");
@@ -133,13 +125,7 @@ function updateView() {
 			const roomDisplay = document.getElementById("room-code-display");
 			if (roomDisplay) roomDisplay.textContent = currentRoom;
 			connStatusEl = document.getElementById("connection-info");
-			statusTextEl = null; // no global status text element
-			setConnectionStatus(
-				connStatusEl,
-				null,
-				"Waiting for phone to scan...",
-				"warn",
-			);
+			statusTextEl = null;
 		}
 	} else {
 		// CLIENT (phone)
@@ -150,33 +136,15 @@ function updateView() {
 				"connection-status-mobile-client",
 			);
 			statusTextEl = null;
-			setConnectionStatus(
-				connStatusEl,
-				null,
-				"Connecting to PC...",
-				"warn",
-			);
 		} else {
 			pcClientView.classList.remove("hidden");
 			injectComponents("pc-client");
 			connStatusEl = document.getElementById("connection-info-client");
 			statusTextEl = null;
-			setConnectionStatus(
-				connStatusEl,
-				null,
-				"Connecting to PC...",
-				"warn",
-			);
 		}
 	}
 
-	// Log which status elements are being set
-	console.log("[updateView] setting status elements:", {
-		connStatusEl: connStatusEl?.id || "null",
-		statusTextEl: statusTextEl?.id || "null",
-	});
-
-	// **Update the status element references used by WebRTC and Fallback modules**
+	// Update status element references for WebRTC and Fallback modules
 	setWebRTCStatusElements(connStatusEl, statusTextEl);
 	setFallbackStatusElements(connStatusEl, statusTextEl);
 
@@ -205,6 +173,36 @@ function updateView() {
 		});
 		renderHistory();
 	}
+
+	// ---- Set status based on current connection state ----
+	updateConnectionStatus(connStatusEl, statusTextEl);
+}
+
+// ---- Helper to set status based on actual connection state ----
+function updateConnectionStatus(connStatusEl, statusTextEl) {
+	const isWebRTCConnected =
+		webrtcState.dataChannel &&
+		webrtcState.dataChannel.readyState === "open";
+	const isFallbackActive = fallbackState.active;
+
+	let statusText, state;
+	if (isWebRTCConnected) {
+		statusText = "Connected Directly via P2P!";
+		state = "good";
+	} else if (isFallbackActive) {
+		statusText = "Connected via Relay";
+		state = "good";
+	} else {
+		// No connection yet
+		if (!isInitiator) {
+			statusText = "Waiting for phone to scan...";
+		} else {
+			statusText = "Connecting to PC...";
+		}
+		state = "warn";
+	}
+
+	setConnectionStatus(connStatusEl, statusTextEl, statusText, state);
 }
 
 // ----- Direct file input handler (attached after injection) -----
@@ -302,9 +300,6 @@ function setModeFromSignal(mode) {
 		radio.checked = radio.value === mode;
 	});
 	applyMode();
-	if (isInitiator && mode === "fallback") {
-		// Status will be set by activateFallback
-	}
 }
 
 function applyMode() {
@@ -317,7 +312,7 @@ function applyMode() {
 	const mode = getSelectedMode();
 	console.log("[applyMode] current mode:", mode, "isInitiator:", isInitiator);
 
-	// If the mode hasn't changed and we already have an active connection, do nothing.
+	// If already connected in this mode, do nothing
 	if (
 		mode === currentMode &&
 		webrtcState.dataChannel &&
@@ -328,13 +323,12 @@ function applyMode() {
 		return;
 	}
 
-	// Reset state for a clean start
+	// Reset state
 	resetWebRTC();
 	resetFallback();
 	initiatorStarted = false;
 
 	if (mode === "fallback") {
-		// Activate fallback mode – this will set status to "Connected via Relay"
 		const hadDirect = !!(
 			webrtcState.dataChannel &&
 			webrtcState.dataChannel.readyState === "open"
@@ -348,7 +342,6 @@ function applyMode() {
 			});
 		}
 	} else {
-		// WebRTC mode
 		if (isInitiator) {
 			console.log("[applyMode] Client starting WebRTC initiator...");
 			startInitiator();
@@ -360,7 +353,6 @@ function applyMode() {
 				room: currentRoom,
 				signal: { type: "mode-change", mode: "webrtc" },
 			});
-			// Host status will be updated when data channel opens
 		}
 	}
 	modeChangeInProgress = false;
@@ -419,14 +411,7 @@ function startInitiator() {
 // ============================================================
 // 7. Initialise modules
 // ============================================================
-initWebRTC(
-	socket,
-	currentRoom,
-	isInitiator,
-	errorBox,
-	null, // connectionStatus – will be updated later
-	null, // statusText – will be updated later
-);
+initWebRTC(socket, currentRoom, isInitiator, errorBox, null, null);
 initFallback(socket, currentRoom, errorBox, null, null, processSendQueue);
 
 // ============================================================
@@ -442,7 +427,6 @@ async function processSendQueue() {
 		webrtcState.sendQueue.length,
 	);
 
-	// Safety: if no active connection, retry or fail
 	if (!fallbackState.active) {
 		if (
 			!webrtcState.dataChannel ||
@@ -534,9 +518,6 @@ async function handleSignal(signal) {
 				room: currentRoom,
 				signal: { type: "mode-change", mode },
 			});
-			if (mode === "fallback") {
-				// Status will be set by activateFallback
-			}
 		}
 		return;
 	}
@@ -549,7 +530,6 @@ async function handleSignal(signal) {
 		return;
 	}
 
-	// WebRTC signals – ignore if in fallback mode
 	if (getSelectedMode() === "fallback") {
 		console.log(
 			"[handleSignal] ignoring WebRTC signal because mode is fallback",
@@ -557,7 +537,6 @@ async function handleSignal(signal) {
 		return;
 	}
 
-	// SDP handling
 	if (signal.sdp) {
 		if (!webrtcState.peerConnection) {
 			if (isInitiator) {
@@ -674,9 +653,7 @@ function joinAndMaybeStart() {
 			room: currentRoom,
 			signal: { type: "request-mode" },
 		});
-		// status will be updated by updateView when it runs
 	} else {
-		// Host: apply mode after a short delay to ensure UI is ready
 		setTimeout(() => {
 			applyMode();
 		}, 100);
