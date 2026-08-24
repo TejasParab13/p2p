@@ -16,7 +16,7 @@ when i have not connected the two devices (new room) and i switch to relay mode,
 
 when we switch to relay and then scan the device does not get connected - done
 
-implement better UI on phone recive and host
+implement better UI on phone recive and host - done
 on pc send is good, add better for recive
 split the service in to page cat 	send (pc, phone)	revice (pc, phone)
 

@@ -57,6 +57,7 @@ let currentMode = "webrtc";
 let retryTimeout = null;
 let retryStartedAt = null;
 const MAX_RETRY_MS = 30000;
+let modeChangeInProgress = false; // prevent concurrent mode changes
 
 // ============================================================
 // 3. Device detection & view updater
@@ -151,7 +152,7 @@ function updateView() {
 	attachModeListeners();
 	attachFilterListeners();
 
-	// Re-init history – FIX: use initHistory instead of dynamic import
+	// Re-init history – use initHistory instead of dynamic import
 	const viewPrefix = isInitiator
 		? isMobileDevice()
 			? "mobile-client"
@@ -185,8 +186,14 @@ function attachModeListeners() {
 function handleModeChange(e) {
 	const radio = e.target;
 	if (radio.checked) {
-		currentMode = radio.value;
-		console.log("[Mode] changed to:", currentMode);
+		const newMode = radio.value;
+		if (newMode === currentMode && webrtcState.peerConnection) {
+			// Already in this mode, ignore
+			console.log("[Mode] already in mode:", newMode);
+			return;
+		}
+		console.log("[Mode] changed to:", newMode);
+		currentMode = newMode;
 		applyMode();
 	}
 }
@@ -245,6 +252,10 @@ function getSelectedMode() {
 
 function setModeFromSignal(mode) {
 	if (mode !== "webrtc" && mode !== "fallback") return;
+	if (mode === currentMode && webrtcState.peerConnection) {
+		console.log("[Signal] mode already", mode, "– ignoring");
+		return;
+	}
 	console.log("[Signal] mode-change received:", mode);
 	currentMode = mode;
 	document.querySelectorAll('input[name="mode"]').forEach((radio) => {
@@ -263,10 +274,27 @@ function setModeFromSignal(mode) {
 }
 
 function applyMode() {
+	if (modeChangeInProgress) {
+		console.log("[applyMode] already in progress, skipping");
+		return;
+	}
+	modeChangeInProgress = true;
+
 	const mode = getSelectedMode();
 	console.log("[applyMode] current mode:", mode, "isInitiator:", isInitiator);
 
-	// Reset state for a clean start
+	// If the mode hasn't changed and we already have an active connection, do nothing.
+	if (
+		mode === currentMode &&
+		webrtcState.dataChannel &&
+		webrtcState.dataChannel.readyState === "open"
+	) {
+		console.log("[applyMode] already connected in mode:", mode);
+		modeChangeInProgress = false;
+		return;
+	}
+
+	// Reset state for a clean start (but only if we are actually changing something)
 	resetWebRTC();
 	resetFallback();
 	initiatorStarted = false;
@@ -316,6 +344,7 @@ function applyMode() {
 			);
 		}
 	}
+	modeChangeInProgress = false;
 }
 
 // ============================================================
@@ -629,7 +658,10 @@ function joinAndMaybeStart() {
 		);
 	} else {
 		// Host: apply mode now (this will also send mode-change to client)
-		applyMode();
+		// Wait a short moment to ensure the UI is fully injected.
+		setTimeout(() => {
+			applyMode();
+		}, 100);
 	}
 }
 
@@ -644,9 +676,6 @@ socket.on("connect_error", (err) => {
 	if (connectErrorCount >= 3)
 		showError(`Signaling connection failed: ${err.message}`, errorBox);
 });
-
-// The socket is not yet connected at this point, so this condition is always false – harmless.
-// if (socket.connected) joinAndMaybeStart();
 
 if (!window.RTCPeerConnection)
 	showError("WebRTC not supported. Use Relay mode.", errorBox);
@@ -760,6 +789,5 @@ window.clearHistory = clearHistory;
 window.addEventListener("load", () => {
 	attachModeListeners();
 	attachFilterListeners();
-	// Ensure mode is applied after UI is ready
-	applyMode();
+	// Ensure mode is applied after UI is ready (already called via joinAndMaybeStart)
 });
