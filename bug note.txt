@@ -14,4 +14,9 @@ when i have scaned the Qr and like connected the two devices, the direct mode st
 but when im connect the two devices and when i switch to relay mode it says "Data channel closed."
 when i have not connected the two devices (new room) and i switch to relay mode, it says "Connected via Relay"
 
-when we switch to relay and then scan the device does not get connected
+when we switch to relay and then scan the device does not get connected - done
+
+implement better UI on phone recive and host
+on pc send is good, add better for recive
+split the service in to page cat 	send (pc, phone)	revice (pc, phone)
+

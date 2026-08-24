@@ -26,32 +26,25 @@ import {
 	resetFallback,
 } from "./fallback.js";
 
-// ---- DOM refs ----
-const pcView = document.getElementById("pc-view");
-const mobileView = document.getElementById("mobile-view");
+// ---- Component builders ----
+import { ModeSelector, DropZone, HistoryPanel } from "./components.js";
+
+// ============================================================
+// 1. DOM references
+// ============================================================
+const pcHostView = document.getElementById("pc-host-view");
+const pcClientView = document.getElementById("pc-client-view");
+const mobileHostView = document.getElementById("mobile-host-view");
+const mobileClientView = document.getElementById("mobile-client-view");
+
 const errorBox = document.getElementById("error-box");
 const statusText = document.getElementById("status");
 const roomUrlText = document.getElementById("room-url");
-const fileInputPC = document.getElementById("file-input-pc");
-const dropZone = document.getElementById("drop-zone");
 const connectionStatus = document.getElementById("connection-status");
-const fileInputMobile = document.getElementById("file-input-mobile");
-const historyListPC = document.getElementById("history-list");
-const historyListMobile = document.getElementById("history-list-mobile");
-const historyEmptyPC = document.getElementById("history-empty");
-const historyEmptyMobile = document.getElementById("history-empty-mobile");
-const modeRadiosPC = document.querySelectorAll('input[name="mode"]');
-const roomCodeDisplay = document.getElementById("room-code-display");
-const roomCodeInput = document.getElementById("room-code-input");
-const filterRadios = document.querySelectorAll('input[name="filter"]');
 
-initHistory({
-	historyListPC,
-	historyListMobile,
-	historyEmptyPC,
-	historyEmptyMobile,
-});
-
+// ============================================================
+// 2. Socket & room logic
+// ============================================================
 const socket = io(SIGNALING_URL, { transports: ["websocket", "polling"] });
 
 let initiatorStarted = false;
@@ -63,12 +56,215 @@ const currentRoom = urlRoom || Math.random().toString(36).substring(2, 9);
 let currentMode = "webrtc";
 let retryTimeout = null;
 let retryStartedAt = null;
-const MAX_RETRY_MS = 30000; // 30s
+const MAX_RETRY_MS = 30000;
 
-if (roomCodeDisplay) roomCodeDisplay.textContent = currentRoom;
+// ============================================================
+// 3. Device detection & view updater
+// ============================================================
+function isMobileDevice() {
+	return window.innerWidth < 768;
+}
 
+function injectComponents(viewId, mode = currentMode) {
+	// Determine which containers to inject based on viewId
+	const modeContainer = document.getElementById(`${viewId}-mode-container`);
+	const dropContainer = document.getElementById(`${viewId}-drop-container`);
+	const historyContainer = document.getElementById(
+		`${viewId}-history-container`,
+	);
+
+	if (modeContainer) {
+		modeContainer.innerHTML = ModeSelector({ selected: mode });
+	}
+	if (dropContainer) {
+		// Use unique IDs for each drop zone
+		const dropId = `drop-${viewId}`;
+		const inputId = `file-input-${viewId}`;
+		dropContainer.innerHTML = DropZone({ id: dropId, inputId: inputId });
+	}
+	if (historyContainer) {
+		const listId = `history-list-${viewId}`;
+		const emptyId = `history-empty-${viewId}`;
+		historyContainer.innerHTML = HistoryPanel({ listId, emptyId });
+	}
+}
+
+function updateView() {
+	// Hide all
+	[pcHostView, pcClientView, mobileHostView, mobileClientView].forEach((el) =>
+		el?.classList.add("hidden"),
+	);
+
+	if (!isInitiator) {
+		// HOST
+		if (isMobileDevice()) {
+			mobileHostView.classList.remove("hidden");
+			injectComponents("mobile-host");
+			// QR code generation (need to find the element in this view)
+			const qrEl = document.getElementById("qrcode-mobile");
+			if (qrEl) makeQr(currentRoom, qrEl);
+			// Update room display
+			const roomDisplay = document.getElementById(
+				"room-code-display-mobile",
+			);
+			if (roomDisplay) roomDisplay.textContent = currentRoom;
+			setConnectionStatus(
+				document.getElementById("connection-status-mobile"),
+				null,
+				"Waiting for phone to scan...",
+				"warn",
+			);
+		} else {
+			pcHostView.classList.remove("hidden");
+			injectComponents("pc-host");
+			// QR code generation
+			const qrEl = document.getElementById("qrcode");
+			if (qrEl) makeQr(currentRoom, qrEl);
+			// Room code display
+			const roomDisplay = document.getElementById("room-code-display");
+			if (roomDisplay) roomDisplay.textContent = currentRoom;
+			setConnectionStatus(
+				document.getElementById("connection-info"),
+				statusText,
+				"Waiting for phone to scan...",
+				"warn",
+			);
+		}
+	} else {
+		// CLIENT
+		if (isMobileDevice()) {
+			mobileClientView.classList.remove("hidden");
+			injectComponents("mobile-client");
+			setConnectionStatus(
+				document.getElementById("connection-status-mobile-client"),
+				null,
+				"Connecting to PC...",
+				"warn",
+			);
+		} else {
+			pcClientView.classList.remove("hidden");
+			injectComponents("pc-client");
+			setConnectionStatus(
+				document.getElementById("connection-info-client"),
+				statusText,
+				"Connecting to PC...",
+				"warn",
+			);
+		}
+	}
+
+	// After injecting components, re-attach event listeners for file inputs and drop zones
+	attachFileHandlers();
+	attachModeListeners();
+	attachFilterListeners();
+
+	// Re-initialise history module with the new history list IDs
+	// We need to map the current view's history list and empty IDs.
+	// We'll use a consistent naming pattern.
+	const viewPrefix = isInitiator
+		? isMobileDevice()
+			? "mobile-client"
+			: "pc-client"
+		: isMobileDevice()
+			? "mobile-host"
+			: "pc-host";
+	const listId = `history-list-${viewPrefix}`;
+	const emptyId = `history-empty-${viewPrefix}`;
+	const listEl = document.getElementById(listId);
+	const emptyEl = document.getElementById(emptyId);
+	if (listEl && emptyEl) {
+		// history.js expects both PC and mobile list elements – we'll store them accordingly.
+		// We'll assign the current view's list to both PC and mobile references so history renders in the visible view.
+		// This is a bit hacky but works because only one view is visible.
+		// We'll update the module's internal refs.
+		import("./history.js").then((module) => {
+			module.historyListPC = listEl;
+			module.historyListMobile = listEl; // both point to the same visible list
+			module.historyEmptyPC = emptyEl;
+			module.historyEmptyMobile = emptyEl;
+			module.renderHistory();
+		});
+	}
+}
+
+// ----- Attach file input and drop zone handlers (delegated) -----
+function attachFileHandlers() {
+	// Use event delegation on document
+	// We already have delegated listeners in place – we'll add them once.
+	// Since we use delegation, we don't need to reattach per view.
+}
+
+// ----- Mode listener (delegated) -----
+function attachModeListeners() {
+	const radios = document.querySelectorAll('input[name="mode"]');
+	radios.forEach((radio) => {
+		radio.removeEventListener("change", handleModeChange);
+		radio.addEventListener("change", handleModeChange);
+	});
+}
+
+function handleModeChange(e) {
+	const radio = e.target;
+	if (radio.checked) {
+		// Update slider if present
+		const slider = document.getElementById("mode-slider");
+		if (slider) {
+			const selected = document.querySelector(
+				'input[name="mode"]:checked',
+			);
+			if (selected) {
+				const labels = document.querySelectorAll("label[data-mode]");
+				let index = 0;
+				for (const label of labels) {
+					if (label.querySelector('input[type="radio"]') === selected)
+						break;
+					index++;
+				}
+				slider.style.transform = `translateX(${index * 100}%)`;
+			}
+		}
+		applyMode();
+	}
+}
+
+function attachFilterListeners() {
+	const radios = document.querySelectorAll('input[name="filter"]');
+	radios.forEach((radio) => {
+		radio.removeEventListener("change", handleFilterChange);
+		radio.addEventListener("change", handleFilterChange);
+	});
+}
+
+function handleFilterChange(e) {
+	const radio = e.target;
+	if (radio.checked) setFilter(radio.value);
+}
+
+// Window resize
+let resizeTimeout;
+window.addEventListener("resize", () => {
+	clearTimeout(resizeTimeout);
+	resizeTimeout = setTimeout(updateView, 300);
+});
+
+// ============================================================
+// 4. Join room (used by all join buttons)
+// ============================================================
 window.joinRoom = function () {
-	const code = encodeURIComponent(roomCodeInput.value.trim().toLowerCase());
+	// Find the visible room code input (could be in any view)
+	const inputs = document.querySelectorAll('input[id^="room-code-input"]');
+	let input = null;
+	for (const el of inputs) {
+		if (el.closest(".hidden") === null) {
+			input = el;
+			break;
+		}
+	}
+	if (!input) {
+		showError("Room code input not found", errorBox);
+		return;
+	}
+	const code = encodeURIComponent(input.value.trim().toLowerCase());
 	if (!code) {
 		showError("Please enter a room code", errorBox);
 		return;
@@ -78,24 +274,20 @@ window.joinRoom = function () {
 	window.location.href = url.toString();
 };
 
-filterRadios.forEach((radio) =>
-	radio.addEventListener("change", () => {
-		if (radio.checked) setFilter(radio.value);
-	}),
-);
-
+// ============================================================
+// 5. Mode management
+// ============================================================
 function getSelectedMode() {
-	for (const radio of modeRadiosPC) {
-		if (radio.checked) return radio.value;
-	}
-	return currentMode;
+	const checked = document.querySelector('input[name="mode"]:checked');
+	return checked ? checked.value : currentMode;
 }
 
 function setModeFromSignal(mode) {
 	if (mode !== "webrtc" && mode !== "fallback") return;
-	console.log("Mode changed via signal:", mode);
 	currentMode = mode;
-	for (const radio of modeRadiosPC) radio.checked = radio.value === mode;
+	document.querySelectorAll('input[name="mode"]').forEach((radio) => {
+		radio.checked = radio.value === mode;
+	});
 	applyMode();
 	if (isInitiator && mode === "fallback") {
 		setConnectionStatus(
@@ -110,13 +302,10 @@ function setModeFromSignal(mode) {
 
 function applyMode() {
 	const mode = getSelectedMode();
-	console.log("Applying mode:", mode);
 	const hadDirectConnection = !!(
 		webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open"
 	);
-	if (mode === "fallback" && hadDirectConnection) {
-		setSwitchingToRelay(true);
-	}
+	if (mode === "fallback" && hadDirectConnection) setSwitchingToRelay(true);
 	resetWebRTC();
 	resetFallback();
 	initiatorStarted = false;
@@ -155,6 +344,9 @@ function applyMode() {
 	}
 }
 
+// ============================================================
+// 6. WebRTC initiator
+// ============================================================
 function startInitiator() {
 	if (initiatorStarted || !window.RTCPeerConnection) return;
 	if (getSelectedMode() === "fallback") return;
@@ -186,6 +378,9 @@ function startInitiator() {
 		});
 }
 
+// ============================================================
+// 7. Initialise modules
+// ============================================================
 initWebRTC(
 	socket,
 	currentRoom,
@@ -203,10 +398,11 @@ initFallback(
 	processSendQueue,
 );
 
+// ============================================================
+// 8. File send queue (unchanged)
+// ============================================================
 async function processSendQueue() {
 	if (webrtcState.isSending || webrtcState.sendQueue.length === 0) return;
-
-	// If no active connection, retry (with timeout)
 	if (!fallbackState.active) {
 		if (
 			!webrtcState.dataChannel ||
@@ -214,7 +410,6 @@ async function processSendQueue() {
 		) {
 			if (!retryStartedAt) retryStartedAt = Date.now();
 			if (Date.now() - retryStartedAt > MAX_RETRY_MS) {
-				// timeout – mark the first file as error and remove it
 				const item = webrtcState.sendQueue.shift();
 				const histItem = transferHistory.find((h) => h.id === item.id);
 				if (histItem) {
@@ -223,7 +418,7 @@ async function processSendQueue() {
 				}
 				showError("Connection timeout. Please try again.", errorBox);
 				retryStartedAt = null;
-				processSendQueue(); // continue with next
+				processSendQueue();
 				return;
 			}
 			if (retryTimeout) clearTimeout(retryTimeout);
@@ -234,10 +429,9 @@ async function processSendQueue() {
 			return;
 		}
 	}
-	retryStartedAt = null; // reset if connection is open
-
+	retryStartedAt = null;
 	webrtcState.isSending = true;
-	const item = webrtcState.sendQueue.shift(); // { file, id }
+	const item = webrtcState.sendQueue.shift();
 	const file = item.file;
 	const transferId = item.id;
 	try {
@@ -251,7 +445,6 @@ async function processSendQueue() {
 			await sendFileFallback(file, transferId);
 		} else {
 			showError("No active connection", errorBox);
-			// mark as error
 			const histItem = transferHistory.find((h) => h.id === transferId);
 			if (histItem) {
 				histItem.status = "error";
@@ -271,6 +464,9 @@ async function processSendQueue() {
 	}
 }
 
+// ============================================================
+// 9. Signal handler (unchanged)
+// ============================================================
 async function handleSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
 	if (signal.type === "request-mode") {
@@ -352,8 +548,10 @@ async function handleSignal(signal) {
 	}
 }
 
-function makeQr(roomId) {
-	const qrEl = document.getElementById("qrcode");
+// ============================================================
+// 10. QR Code generator (pass the target element)
+// ============================================================
+function makeQr(roomId, qrEl) {
 	if (!qrEl) {
 		console.warn("QR element not found – skipping QR generation");
 		return;
@@ -374,11 +572,13 @@ function makeQr(roomId) {
 			colorLight: "#ffffff",
 		});
 	} else {
-		console.warn("QRCode library not loaded – falling back to text");
 		qrEl.textContent = u.toString();
 	}
 }
 
+// ============================================================
+// 11. Socket events and initial load
+// ============================================================
 function joinAndMaybeStart() {
 	connectErrorCount = 0;
 	socket.emit("join-room", currentRoom);
@@ -414,27 +614,17 @@ if (socket.connected) joinAndMaybeStart();
 if (!window.RTCPeerConnection)
 	showError("WebRTC not supported. Use Relay mode.", errorBox);
 
-if (!isInitiator) {
-	pcView.classList.remove("hidden");
-	makeQr(currentRoom);
-	setConnectionStatus(
-		connectionStatus,
-		statusText,
-		"Waiting for phone to scan...",
-		"warn",
-	);
-} else {
-	mobileView.classList.remove("hidden");
-	setConnectionStatus(
-		connectionStatus,
-		statusText,
-		"Connecting to PC...",
-		"warn",
-	);
-}
+// ============================================================
+// 12. Initial view
+// ============================================================
+updateView();
 
+// ============================================================
+// 13. File selection handlers (delegated)
+// ============================================================
 async function handleFileSelect(event) {
-	const files = event.target.files;
+	const input = event.target;
+	const files = input.files;
 	if (!files || files.length === 0) return;
 	const hasWebRTC =
 		webrtcState.dataChannel &&
@@ -445,15 +635,14 @@ async function handleFileSelect(event) {
 			"No active connection. Please ensure you are connected or switch to Relay mode.",
 			errorBox,
 		);
-		event.target.value = "";
+		input.value = "";
 		return;
 	}
-	// For each file, generate an ID, push into queue, and create a queued history entry
 	for (const file of files) {
 		const id = crypto.randomUUID();
 		webrtcState.sendQueue.push({ file, id });
 		transferHistory.push({
-			id: id,
+			id,
 			name: file.name,
 			size: file.size,
 			type: file.type || "application/octet-stream",
@@ -465,31 +654,52 @@ async function handleFileSelect(event) {
 		});
 	}
 	renderHistory();
-	event.target.value = "";
+	input.value = "";
 	processSendQueue();
 }
 
-if (fileInputPC) fileInputPC.addEventListener("change", handleFileSelect);
-if (fileInputMobile)
-	fileInputMobile.addEventListener("change", handleFileSelect);
+document.addEventListener("change", (e) => {
+	if (e.target.matches('input[type="file"]')) handleFileSelect(e);
+});
 
-if (dropZone && fileInputPC) {
-	dropZone.addEventListener("dragover", (e) => {
+// Drop zone delegation
+document.addEventListener("dragover", (e) => {
+	const dropZone = e.target.closest('[id^="drop-"]');
+	if (dropZone) {
 		e.preventDefault();
 		dropZone.classList.add("drop-zone-active");
-	});
-	dropZone.addEventListener("dragleave", () =>
-		dropZone.classList.remove("drop-zone-active"),
-	);
-	dropZone.addEventListener("drop", (e) => {
+	}
+});
+document.addEventListener("dragleave", (e) => {
+	const dropZone = e.target.closest('[id^="drop-"]');
+	if (dropZone) {
 		e.preventDefault();
 		dropZone.classList.remove("drop-zone-active");
-		if (e.dataTransfer.files.length) {
-			for (const file of e.dataTransfer.files) {
+	}
+});
+document.addEventListener("drop", (e) => {
+	const dropZone = e.target.closest('[id^="drop-"]');
+	if (dropZone) {
+		e.preventDefault();
+		dropZone.classList.remove("drop-zone-active");
+		const files = e.dataTransfer.files;
+		if (files.length) {
+			const hasWebRTC =
+				webrtcState.dataChannel &&
+				webrtcState.dataChannel.readyState === "open";
+			const hasFallback = fallbackState.active;
+			if (!hasWebRTC && !hasFallback) {
+				showError(
+					"No active connection. Please ensure you are connected or switch to Relay mode.",
+					errorBox,
+				);
+				return;
+			}
+			for (const file of files) {
 				const id = crypto.randomUUID();
 				webrtcState.sendQueue.push({ file, id });
 				transferHistory.push({
-					id: id,
+					id,
 					name: file.name,
 					size: file.size,
 					type: file.type || "application/octet-stream",
@@ -503,47 +713,19 @@ if (dropZone && fileInputPC) {
 			renderHistory();
 			processSendQueue();
 		}
-	});
-}
-
-for (const radio of modeRadiosPC) {
-	radio.addEventListener("change", () => {
-		const slider = document.getElementById("mode-slider");
-		if (slider) {
-			const selected = document.querySelector(
-				'input[name="mode"]:checked',
-			);
-			if (selected) {
-				const labels = document.querySelectorAll("label[data-mode]");
-				let index = 0;
-				for (const label of labels) {
-					if (label.querySelector('input[type="radio"]') === selected)
-						break;
-					index++;
-				}
-				slider.style.transform = `translateX(${index * 100}%)`;
-			}
-		}
-		applyMode();
-	});
-}
-
-window.addEventListener("load", () => {
-	const slider = document.getElementById("mode-slider");
-	if (slider) {
-		const selected = document.querySelector('input[name="mode"]:checked');
-		if (selected) {
-			const labels = document.querySelectorAll("label[data-mode]");
-			let index = 0;
-			for (const label of labels) {
-				if (label.querySelector('input[type="radio"]') === selected)
-					break;
-				index++;
-			}
-			slider.style.transform = `translateX(${index * 100}%)`;
-		}
 	}
-	applyMode();
 });
 
+// ============================================================
+// 14. Expose clearHistory globally
+// ============================================================
 window.clearHistory = clearHistory;
+
+// ============================================================
+// 15. Load event
+// ============================================================
+window.addEventListener("load", () => {
+	attachModeListeners();
+	attachFilterListeners();
+	applyMode();
+});
