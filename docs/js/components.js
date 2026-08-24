@@ -1,5 +1,5 @@
 // ============================================================
-// components.js – Reusable UI parts
+// components.js – Reusable UI parts (no layout, just pure HTML)
 // ============================================================
 
 export function ModeSelector({ selected = "webrtc" } = {}) {
@@ -52,19 +52,20 @@ export function HistoryPanel({
         <button onclick="window.clearHistory()" class="text-[9px] text-zinc-500 hover:text-red-400 transition">Clear All</button>
       </div>
       <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 flex-1 flex flex-col min-h-0 overflow-hidden">
+        <!-- Filter bar with improved alignment -->
         <div class="flex items-center justify-between mb-2 shrink-0">
           <div class="flex rounded-full bg-[#121214] p-0.5 border border-[#2a2a2e]">
-            <label class="cursor-pointer">
+            <label class="cursor-pointer flex-1">
               <input type="radio" name="filter" value="all" class="hidden peer" checked />
-              <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] text-zinc-400 text-[10px] px-2 py-0.5 rounded-full transition-all">All</span>
+              <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 hover:text-zinc-300 block text-center text-[10px] px-3 py-0.5 rounded-full transition-all">All</span>
             </label>
-            <label class="cursor-pointer">
+            <label class="cursor-pointer flex-1">
               <input type="radio" name="filter" value="sent" class="hidden peer" />
-              <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] text-zinc-400 text-[10px] px-2 py-0.5 rounded-full transition-all">Sent</span>
+              <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 hover:text-zinc-300 block text-center text-[10px] px-3 py-0.5 rounded-full transition-all">Sent</span>
             </label>
-            <label class="cursor-pointer">
+            <label class="cursor-pointer flex-1">
               <input type="radio" name="filter" value="received" class="hidden peer" />
-              <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] text-zinc-400 text-[10px] px-2 py-0.5 rounded-full transition-all">Received</span>
+              <span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 hover:text-zinc-300 block text-center text-[10px] px-3 py-0.5 rounded-full transition-all">Received</span>
             </label>
           </div>
         </div>

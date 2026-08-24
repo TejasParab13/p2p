@@ -98,8 +98,9 @@
         <!-- ============================================== -->
         <!--                    PC CLIENT                   -->
         <!-- ============================================== -->
-        <div id="pc-client-view" class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
-          <div class="lg:col-span-2 flex flex-col gap-3 lg:gap-4 h-full overflow-hidden">
+        <!-- Changed to 5-column grid with left 3, right 2 -->
+        <div id="pc-client-view" class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
+          <div class="lg:col-span-3 flex flex-col gap-3 lg:gap-4 h-full overflow-hidden">
             <!-- TITLE BAR -->
             <div class="shrink-0 bg-white rounded-full px-4 py-2 flex items-center gap-2 shadow-sm w-fit">
               <svg class="w-5 h-5 text-[#1a1a1a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -145,8 +146,8 @@
               </div>
             </div>
           </div>
-          <!-- History panel container -->
-          <div id="pc-client-history-container" class="flex flex-col h-full"></div>
+          <!-- History panel container – takes 2 columns (right side) -->
+          <div id="pc-client-history-container" class="lg:col-span-2 flex flex-col h-full"></div>
         </div>
 
         <!-- ============================================== -->

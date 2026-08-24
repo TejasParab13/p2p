@@ -151,7 +151,7 @@ function updateView() {
 	attachModeListeners();
 	attachFilterListeners();
 
-	// Re-init history
+	// Re-init history – FIX: use initHistory instead of dynamic import
 	const viewPrefix = isInitiator
 		? isMobileDevice()
 			? "mobile-client"
@@ -164,13 +164,13 @@ function updateView() {
 	const listEl = document.getElementById(listId);
 	const emptyEl = document.getElementById(emptyId);
 	if (listEl && emptyEl) {
-		import("./history.js").then((module) => {
-			module.historyListPC = listEl;
-			module.historyListMobile = listEl;
-			module.historyEmptyPC = emptyEl;
-			module.historyEmptyMobile = emptyEl;
-			module.renderHistory();
+		initHistory({
+			historyListPC: listEl,
+			historyListMobile: listEl,
+			historyEmptyPC: emptyEl,
+			historyEmptyMobile: emptyEl,
 		});
+		renderHistory();
 	}
 }
 
@@ -645,7 +645,9 @@ socket.on("connect_error", (err) => {
 		showError(`Signaling connection failed: ${err.message}`, errorBox);
 });
 
-if (socket.connected) joinAndMaybeStart();
+// The socket is not yet connected at this point, so this condition is always false – harmless.
+// if (socket.connected) joinAndMaybeStart();
+
 if (!window.RTCPeerConnection)
 	showError("WebRTC not supported. Use Relay mode.", errorBox);
 
