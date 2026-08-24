@@ -194,29 +194,45 @@ function refreshStatus() {
 
 // ---- Helper to set status based on actual connection state ----
 function updateConnectionStatus(connStatusEl, statusTextEl) {
+	// If fallback mode is selected, show relay status regardless of WebRTC state
+	if (currentMode === "fallback") {
+		setConnectionStatus(
+			connStatusEl,
+			statusTextEl,
+			"Connected via Relay",
+			"good",
+		);
+		return;
+	}
+	// Otherwise, check WebRTC connection
 	const isWebRTCConnected =
 		webrtcState.dataChannel &&
 		webrtcState.dataChannel.readyState === "open";
-	const isFallbackActive = fallbackState.active;
-
-	let statusText, state;
 	if (isWebRTCConnected) {
-		statusText = "Connected Directly via P2P!";
-		state = "good";
-	} else if (isFallbackActive) {
-		statusText = "Connected via Relay";
-		state = "good";
+		setConnectionStatus(
+			connStatusEl,
+			statusTextEl,
+			"Connected Directly via P2P!",
+			"good",
+		);
 	} else {
 		// No connection yet
 		if (!isInitiator) {
-			statusText = "Waiting for phone to scan...";
+			setConnectionStatus(
+				connStatusEl,
+				statusTextEl,
+				"Waiting for phone to scan...",
+				"warn",
+			);
 		} else {
-			statusText = "Connecting to PC...";
+			setConnectionStatus(
+				connStatusEl,
+				statusTextEl,
+				"Connecting to PC...",
+				"warn",
+			);
 		}
-		state = "warn";
 	}
-
-	setConnectionStatus(connStatusEl, statusTextEl, statusText, state);
 }
 
 // ----- Direct file input handler (attached after injection) -----
