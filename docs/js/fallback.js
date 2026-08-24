@@ -18,6 +18,12 @@ let connectionStatusRef = null;
 let statusTextRef = null;
 let processSendQueueCallback = null;
 
+// --- Allow updating status elements after view changes ---
+export function setFallbackStatusElements(connStatusEl, statusTextEl) {
+	connectionStatusRef = connStatusEl;
+	statusTextRef = statusTextEl;
+}
+
 export function initFallback(
 	socket,
 	room,
@@ -39,14 +45,14 @@ export function activateFallback(hasPeer = false) {
 	fallbackState.active = true;
 	fallbackState.peerConnected = hasPeer;
 	console.log("Fallback activated, hasPeer:", hasPeer);
-	if (hasPeer) {
-		setConnectionStatus(
-			connectionStatusRef,
-			statusTextRef,
-			"Connected via Relay",
-			"good",
-		);
-	}
+	// Always set status to "Connected via Relay" when fallback becomes active
+	// The relay connection is established via the signaling server.
+	setConnectionStatus(
+		connectionStatusRef,
+		statusTextRef,
+		"Connected via Relay",
+		"good",
+	);
 	if (processSendQueueCallback) processSendQueueCallback();
 }
 
@@ -73,10 +79,8 @@ function throttleRender(histItem, progress) {
 }
 
 export async function sendFileFallback(file, transferId) {
-	// Find the queued entry created in main.js
 	let histItem = transferHistory.find((h) => h.id === transferId);
 	if (!histItem) {
-		// fallback: create one (shouldn't happen)
 		histItem = {
 			id: transferId,
 			name: file.name,
@@ -96,12 +100,7 @@ export async function sendFileFallback(file, transferId) {
 
 	if (fallbackState.active && !fallbackState.peerConnected) {
 		fallbackState.peerConnected = true;
-		setConnectionStatus(
-			connectionStatusRef,
-			statusTextRef,
-			"Connected via Relay",
-			"good",
-		);
+		// Already set status on activation, so no need to repeat
 	}
 
 	try {
@@ -191,12 +190,7 @@ export function handleFallbackSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
 	if (fallbackState.active && !fallbackState.peerConnected) {
 		fallbackState.peerConnected = true;
-		setConnectionStatus(
-			connectionStatusRef,
-			statusTextRef,
-			"Connected via Relay",
-			"good",
-		);
+		// Status already set
 	}
 	if (signal.type === "file-meta") {
 		fallbackState.meta = signal;

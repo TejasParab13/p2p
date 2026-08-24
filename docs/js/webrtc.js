@@ -24,6 +24,12 @@ export function setSwitchingToRelay(value) {
 	isSwitchingToRelay = value;
 }
 
+// --- Allow updating status elements after view changes ---
+export function setWebRTCStatusElements(connStatusEl, statusTextEl) {
+	connectionStatusRef = connStatusEl;
+	statusTextRef = statusTextEl;
+}
+
 export function initWebRTC(
 	socket,
 	room,
@@ -65,23 +71,21 @@ function throttleRender(histItem, progress) {
 	}
 }
 
-// 🔥 NEW: frame a binary chunk with a transfer ID header
+// frame a binary chunk with a transfer ID header
 function frameChunk(id, chunkBuffer) {
 	const idBytes = new TextEncoder().encode(id);
 	const framed = new Uint8Array(
 		4 + idBytes.byteLength + chunkBuffer.byteLength,
 	);
-	new DataView(framed.buffer).setUint32(0, idBytes.byteLength, true); // little-endian
+	new DataView(framed.buffer).setUint32(0, idBytes.byteLength, true);
 	framed.set(idBytes, 4);
 	framed.set(new Uint8Array(chunkBuffer), 4 + idBytes.byteLength);
 	return framed.buffer;
 }
 
 export async function sendFileWebRTC(file, transferId) {
-	// Find the existing queued item created in main.js
 	let histItem = transferHistory.find((h) => h.id === transferId);
 	if (!histItem) {
-		// fallback: create one if missing (should not happen)
 		histItem = {
 			id: transferId,
 			name: file.name,
@@ -120,7 +124,6 @@ export async function sendFileWebRTC(file, transferId) {
 				const chunk = await readFileChunk(
 					file.slice(offset, offset + chunkSize),
 				);
-				// 🔥 Send the framed chunk
 				webrtcState.dataChannel.send(frameChunk(transferId, chunk));
 				offset += chunk.byteLength || chunk.size || 0;
 				const histItem2 = transferHistory.find(
@@ -204,7 +207,7 @@ async function handleDataMessage(event) {
 		}
 		return;
 	}
-	// Binary chunk – now framed with ID header
+	// Binary chunk – framed
 	let arrayBuffer = null;
 	let byteLength = 0;
 	if (event.data instanceof ArrayBuffer) {
@@ -221,7 +224,6 @@ async function handleDataMessage(event) {
 		return;
 	}
 	if (byteLength < 4) return;
-	// Read the ID length from first 4 bytes (little-endian)
 	const idLen = new DataView(arrayBuffer).getUint32(0, true);
 	if (byteLength < 4 + idLen) return;
 	const id = new TextDecoder().decode(arrayBuffer.slice(4, 4 + idLen));

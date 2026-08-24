@@ -16,6 +16,7 @@ import {
 	flushPendingCandidates,
 	resetWebRTC,
 	setSwitchingToRelay,
+	setWebRTCStatusElements,
 } from "./webrtc.js";
 import {
 	fallbackState,
@@ -24,6 +25,7 @@ import {
 	sendFileFallback,
 	handleFallbackSignal,
 	resetFallback,
+	setFallbackStatusElements,
 } from "./fallback.js";
 
 // ---- Component builders ----
@@ -57,7 +59,7 @@ let currentMode = "webrtc";
 let retryTimeout = null;
 let retryStartedAt = null;
 const MAX_RETRY_MS = 30000;
-let modeChangeInProgress = false; // prevent concurrent mode changes
+let modeChangeInProgress = false;
 
 // ============================================================
 // 3. Device detection & view updater
@@ -94,6 +96,8 @@ function updateView() {
 		el?.classList.add("hidden"),
 	);
 
+	let connStatusEl, statusTextEl;
+
 	if (!isInitiator) {
 		// HOST (PC)
 		if (isMobileDevice()) {
@@ -105,8 +109,10 @@ function updateView() {
 				"room-code-display-mobile",
 			);
 			if (roomDisplay) roomDisplay.textContent = currentRoom;
+			connStatusEl = document.getElementById("connection-status-mobile");
+			statusTextEl = null;
 			setConnectionStatus(
-				document.getElementById("connection-status-mobile"),
+				connStatusEl,
 				null,
 				"Waiting for phone to scan...",
 				"warn",
@@ -118,9 +124,11 @@ function updateView() {
 			if (qrEl) makeQr(currentRoom, qrEl);
 			const roomDisplay = document.getElementById("room-code-display");
 			if (roomDisplay) roomDisplay.textContent = currentRoom;
+			connStatusEl = document.getElementById("connection-info");
+			statusTextEl = statusText; // same as document.getElementById("status")
 			setConnectionStatus(
-				document.getElementById("connection-info"),
-				statusText,
+				connStatusEl,
+				statusTextEl,
 				"Waiting for phone to scan...",
 				"warn",
 			);
@@ -130,8 +138,12 @@ function updateView() {
 		if (isMobileDevice()) {
 			mobileClientView.classList.remove("hidden");
 			injectComponents("mobile-client");
+			connStatusEl = document.getElementById(
+				"connection-status-mobile-client",
+			);
+			statusTextEl = null;
 			setConnectionStatus(
-				document.getElementById("connection-status-mobile-client"),
+				connStatusEl,
 				null,
 				"Connecting to PC...",
 				"warn",
@@ -139,20 +151,26 @@ function updateView() {
 		} else {
 			pcClientView.classList.remove("hidden");
 			injectComponents("pc-client");
+			connStatusEl = document.getElementById("connection-info-client");
+			statusTextEl = null;
 			setConnectionStatus(
-				document.getElementById("connection-info-client"),
-				statusText,
+				connStatusEl,
+				null,
 				"Connecting to PC...",
 				"warn",
 			);
 		}
 	}
 
+	// **Update the status element references used by WebRTC and Fallback modules**
+	setWebRTCStatusElements(connStatusEl, statusTextEl);
+	setFallbackStatusElements(connStatusEl, statusTextEl);
+
 	// Attach listeners
 	attachModeListeners();
 	attachFilterListeners();
 
-	// Re-init history – use initHistory instead of dynamic import
+	// Re-init history
 	const viewPrefix = isInitiator
 		? isMobileDevice()
 			? "mobile-client"
@@ -188,7 +206,6 @@ function handleModeChange(e) {
 	if (radio.checked) {
 		const newMode = radio.value;
 		if (newMode === currentMode && webrtcState.peerConnection) {
-			// Already in this mode, ignore
 			console.log("[Mode] already in mode:", newMode);
 			return;
 		}
@@ -263,13 +280,7 @@ function setModeFromSignal(mode) {
 	});
 	applyMode();
 	if (isInitiator && mode === "fallback") {
-		setConnectionStatus(
-			connectionStatus,
-			statusText,
-			"Connected via Relay",
-			"good",
-		);
-		fallbackState.peerConnected = true;
+		// Status will be set by activateFallback
 	}
 }
 
@@ -294,13 +305,13 @@ function applyMode() {
 		return;
 	}
 
-	// Reset state for a clean start (but only if we are actually changing something)
+	// Reset state for a clean start
 	resetWebRTC();
 	resetFallback();
 	initiatorStarted = false;
 
 	if (mode === "fallback") {
-		// Activate fallback mode
+		// Activate fallback mode – this will set status to "Connected via Relay"
 		const hadDirect = !!(
 			webrtcState.dataChannel &&
 			webrtcState.dataChannel.readyState === "open"
@@ -313,22 +324,12 @@ function applyMode() {
 				signal: { type: "mode-change", mode: "fallback" },
 			});
 		}
-		if (!hadDirect && !fallbackState.peerConnected) {
-			setConnectionStatus(
-				connectionStatus,
-				statusText,
-				"Waiting for phone to scan...",
-				"warn",
-			);
-		}
 	} else {
 		// WebRTC mode
 		if (isInitiator) {
-			// Client: start the offer
 			console.log("[applyMode] Client starting WebRTC initiator...");
 			startInitiator();
 		} else {
-			// Host: wait for offer, but also send a mode-change to client to trigger its offer
 			console.log(
 				"[applyMode] Host sending mode-change signal to client",
 			);
@@ -336,12 +337,7 @@ function applyMode() {
 				room: currentRoom,
 				signal: { type: "mode-change", mode: "webrtc" },
 			});
-			setConnectionStatus(
-				connectionStatus,
-				statusText,
-				"Waiting for phone...",
-				"warn",
-			);
+			// Host status will be updated when data channel opens
 		}
 	}
 	modeChangeInProgress = false;
@@ -501,13 +497,7 @@ async function handleSignal(signal) {
 				signal: { type: "mode-change", mode },
 			});
 			if (mode === "fallback") {
-				setConnectionStatus(
-					connectionStatus,
-					statusText,
-					"Connected via Relay",
-					"good",
-				);
-				fallbackState.peerConnected = true;
+				// Status will be set by activateFallback
 			}
 		}
 		return;
@@ -531,16 +521,13 @@ async function handleSignal(signal) {
 
 	// SDP handling
 	if (signal.sdp) {
-		// Ensure we have a peer connection
 		if (!webrtcState.peerConnection) {
 			if (isInitiator) {
-				// Client already has PC from startInitiator
 				console.warn(
 					"[handleSignal] no peer connection on client, but should exist",
 				);
 				return;
 			} else {
-				// Host: create PC when receiving offer
 				console.log(
 					"[handleSignal] host creating peer connection for incoming offer",
 				);
@@ -593,7 +580,6 @@ async function handleSignal(signal) {
 			await flushPendingCandidates();
 		}
 	} else if (signal.candidate) {
-		// ICE candidate handling
 		const pc = webrtcState.peerConnection;
 		if (!pc) {
 			console.warn("[handleSignal] no peer connection for candidate");
@@ -657,8 +643,7 @@ function joinAndMaybeStart() {
 			"warn",
 		);
 	} else {
-		// Host: apply mode now (this will also send mode-change to client)
-		// Wait a short moment to ensure the UI is fully injected.
+		// Host: apply mode after a short delay to ensure UI is ready
 		setTimeout(() => {
 			applyMode();
 		}, 100);
@@ -789,5 +774,4 @@ window.clearHistory = clearHistory;
 window.addEventListener("load", () => {
 	attachModeListeners();
 	attachFilterListeners();
-	// Ensure mode is applied after UI is ready (already called via joinAndMaybeStart)
 });
