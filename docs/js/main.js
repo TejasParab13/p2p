@@ -359,6 +359,10 @@ function applyMode() {
 	}
 
 	// Reset state
+	if (mode === "fallback" && currentMode === "webrtc") {
+		// Switching from WebRTC to Relay - set flag to prevent status updates from WebRTC events
+		setSwitchingToRelay(true);
+	}
 	resetWebRTC();
 	resetFallback();
 	initiatorStarted = false;

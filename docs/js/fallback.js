@@ -45,14 +45,8 @@ export function activateFallback(hasPeer = false) {
 	fallbackState.active = true;
 	fallbackState.peerConnected = hasPeer;
 	console.log("Fallback activated, hasPeer:", hasPeer);
-	// Always set status to "Connected via Relay" when fallback becomes active
-	// The relay connection is established via the signaling server.
-	setConnectionStatus(
-		connectionStatusRef,
-		statusTextRef,
-		"Connected via Relay",
-		"good",
-	);
+	// Status update is handled by updateConnectionStatus() in main.js
+	// Don't set status here to avoid conflicts
 	if (processSendQueueCallback) processSendQueueCallback();
 }
 

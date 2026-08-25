@@ -249,6 +249,11 @@ export function setupDataChannel(channel, processSendQueueCallback) {
 	channel.binaryType = "arraybuffer";
 	channel.bufferedAmountLowThreshold = 256 * 1024;
 	channel.onopen = () => {
+		// Don't update status if we're in fallback mode
+		if (fallbackState.active || isSwitchingToRelay) {
+			console.log("[WebRTC] ignoring channel open, in fallback mode");
+			return;
+		}
 		setConnectionStatus(
 			connectionStatusRef,
 			statusTextRef,
@@ -270,7 +275,9 @@ export function setupDataChannel(channel, processSendQueueCallback) {
 	};
 	channel.onerror = (err) => {
 		console.error("Data channel error:", err);
-		showError("Data channel error. Reload and reconnect.", errorBoxRef);
+		if (!fallbackState.active && !isSwitchingToRelay) {
+			showError("Data channel error. Reload and reconnect.", errorBoxRef);
+		}
 	};
 	channel.onmessage = handleDataMessage;
 }
@@ -313,6 +320,12 @@ export function createPeerConnection(
 		if (onDataChannel) onDataChannel(webrtcState.dataChannel);
 	};
 	pc.onconnectionstatechange = () => {
+		// Don't update status if we're in fallback mode or switching to relay
+		if (fallbackState.active || isSwitchingToRelay) {
+			console.log("[WebRTC] ignoring connection state change, in fallback mode");
+			return;
+		}
+
 		if (pc.connectionState === "connected") {
 			setConnectionStatus(
 				connectionStatusRef,
