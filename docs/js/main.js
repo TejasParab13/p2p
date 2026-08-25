@@ -347,19 +347,30 @@ function applyMode() {
 	console.log("[applyMode] current mode:", mode, "isInitiator:", isInitiator);
 
 	// If already connected in this mode, do nothing but still refresh status
-	if (
-		mode === currentMode &&
-		webrtcState.dataChannel &&
-		webrtcState.dataChannel.readyState === "open"
-	) {
-		console.log("[applyMode] already connected in mode:", mode);
-		modeChangeInProgress = false;
-		refreshStatus();
-		return;
+	// NOTE: Only skip if we're in the same mode AND actively connected in that mode
+	if (mode === currentMode) {
+		if (mode === "webrtc" && webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open") {
+			console.log("[applyMode] already connected via WebRTC");
+			modeChangeInProgress = false;
+			refreshStatus();
+			return;
+		}
+		if (mode === "fallback" && fallbackState.active && hasPeer) {
+			console.log("[applyMode] already connected via Relay");
+			modeChangeInProgress = false;
+			refreshStatus();
+			return;
+		}
 	}
 
+	// Check if we had a direct connection before resetting
+	const hadDirect = !!(
+		webrtcState.dataChannel &&
+		webrtcState.dataChannel.readyState === "open"
+	);
+
 	// Reset state
-	if (mode === "fallback" && currentMode === "webrtc") {
+	if (mode === "fallback" && hadDirect) {
 		// Switching from WebRTC to Relay - set flag to prevent status updates from WebRTC events
 		setSwitchingToRelay(true);
 	}
@@ -368,10 +379,6 @@ function applyMode() {
 	initiatorStarted = false;
 
 	if (mode === "fallback") {
-		const hadDirect = !!(
-			webrtcState.dataChannel &&
-			webrtcState.dataChannel.readyState === "open"
-		);
 		activateFallback(hadDirect);
 		if (!isInitiator) {
 			// Host notifies client to switch to fallback
