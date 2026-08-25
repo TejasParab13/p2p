@@ -263,8 +263,8 @@ function handleModeChange(e) {
 		}
 		console.log("[Mode] changed to:", newMode);
 		currentMode = newMode;
-		// Reset peer flag when switching modes (so we don't falsely show connected)
-		hasPeer = false;
+		// Don't reset hasPeer flag - preserve peer connection state
+		// hasPeer = false;  // REMOVED - this was causing status to show "Waiting for peer..."
 		applyMode();
 	}
 }
@@ -374,6 +374,12 @@ function applyMode() {
 			socket.emit("signal", {
 				room: currentRoom,
 				signal: { type: "mode-change", mode: "fallback" },
+			});
+		} else {
+			// Client confirms fallback activation to host
+			socket.emit("signal", {
+				room: currentRoom,
+				signal: { type: "fallback-ready" },
 			});
 		}
 	} else {
@@ -564,6 +570,15 @@ async function handleSignal(signal) {
 	}
 	if (signal.type === "mode-change" && typeof signal.mode === "string") {
 		setModeFromSignal(signal.mode);
+		return;
+	}
+	if (signal.type === "fallback-ready") {
+		console.log("[Signal] client fallback is ready");
+		hasPeer = true;
+		if (!isInitiator) {
+			// Host updates status to connected via relay
+			refreshStatus();
+		}
 		return;
 	}
 	if (signal.type && signal.type.startsWith("file-")) {
