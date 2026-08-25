@@ -54,12 +54,26 @@ body {
   background: rgba(26, 26, 30, 0.6) !important;
 }
 
-#qrcode canvas {
+#qrcode canvas, #qrcode img {
   display: block;
   margin: 0 auto;
   border-radius: 8px;
   width: 160px !important;
   height: 160px !important;
+}
+
+#qrcode-mobile {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#qrcode-mobile canvas, #qrcode-mobile img {
+  display: block;
+  margin: 0 auto;
+  border-radius: 8px;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
 }
 
 .fade-in {

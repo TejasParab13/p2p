@@ -46,12 +46,29 @@ export function showError(message, errorBox) {
 }
 
 export function setConnectionStatus(connectionStatus, statusText, text, state) {
-	if (connectionStatus) {
-		connectionStatus.textContent = text;
-		connectionStatus.className = `font-medium text-sm ${state === "good" ? "text-emerald-400" : state === "bad" ? "text-red-400" : "text-indigo-400 animate-pulse"}`;
-	}
-	if (statusText) {
-		statusText.textContent = text;
-		statusText.className = `font-medium mb-4 text-sm ${state === "good" ? "text-emerald-400" : state === "bad" ? "text-red-400" : "text-indigo-400 animate-pulse"}`;
-	}
+	const updateElement = (el) => {
+		if (!el) return;
+		el.textContent = text;
+
+		// Remove all possible state color and animation classes
+		el.classList.remove(
+			"text-emerald-400",
+			"text-red-400",
+			"text-indigo-400",
+			"text-zinc-400",
+			"animate-pulse"
+		);
+
+		// Add appropriate state classes
+		if (state === "good") {
+			el.classList.add("text-emerald-400");
+		} else if (state === "bad") {
+			el.classList.add("text-red-400");
+		} else { // "warn" or waiting state
+			el.classList.add("text-indigo-400", "animate-pulse");
+		}
+	};
+
+	updateElement(connectionStatus);
+	updateElement(statusText);
 }

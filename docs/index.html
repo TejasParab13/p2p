@@ -163,16 +163,25 @@
           </div>
 
           <!-- QR & info split row -->
-          <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 flex flex-row items-center gap-3 shrink-0">
+          <div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 flex flex-row items-stretch gap-3 shrink-0 aspect-[2/1] w-full">
             <!-- Left: room code + status -->
-            <div class="flex-1 flex flex-col items-start justify-center">
-              <span class="text-xs text-zinc-400">Room</span>
-              <span id="room-code-display-mobile" class="text-lg font-mono text-white font-semibold"></span>
-              <p id="connection-status-mobile" class="text-xs text-zinc-400 mt-1">Waiting for connection...</p>
+            <div class="flex-1 flex flex-col items-start justify-center min-w-0 pr-2 gap-2">
+              <div class="w-full">
+                <span class="text-xs text-zinc-400">Room</span>
+                <span id="room-code-display-mobile" class="text-lg font-mono text-white font-semibold truncate block w-full"></span>
+                <p id="connection-status-mobile" class="text-xs text-zinc-400 mt-0.5 truncate w-full">Waiting for connection...</p>
+              </div>
+              <div class="w-full">
+                <p class="text-[10px] text-zinc-500 mb-1">or enter code to Join</p>
+                <div class="flex rounded-full bg-[#121214] p-0.5 border border-[#2a2a2e] w-full">
+                  <input type="text" id="room-code-input-mobile-host" placeholder="Enter Code" class="flex-1 bg-transparent border-none rounded-full px-2 py-1 text-xs text-zinc-300 placeholder-zinc-500 focus:outline-none min-w-0" />
+                  <button onclick="window.joinRoom()" class="bg-white text-[#1a1a1a] px-2 py-1 rounded-full text-xs font-medium hover:bg-zinc-200 transition shrink-0">Join</button>
+                </div>
+              </div>
             </div>
             <!-- Right: QR code -->
-            <div class="shrink-0">
-              <div id="qrcode-mobile" class="bg-white p-2 rounded-xl" style="width:100px;height:100px;"></div>
+            <div class="flex-1 flex items-center justify-center bg-white p-2.5 rounded-xl aspect-square h-full">
+              <div id="qrcode-mobile" class="w-full h-full flex items-center justify-center"></div>
             </div>
           </div>
 
