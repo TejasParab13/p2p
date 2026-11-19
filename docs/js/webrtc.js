@@ -1,6 +1,6 @@
 import { RTC_CONFIG } from "./config.js";
 import { setConnectionStatus, showError } from "./utils.js";
-import { transferHistory, renderHistory } from "./history.js";
+import { transferHistory, renderHistory, addPendingFile } from "./history.js";
 import { fallbackState } from "./fallback.js";
 
 export const webrtcState = {
@@ -143,14 +143,13 @@ function completeReceiveWebRTC(id) {
 			const blob = new Blob(receiveData.buffer, {
 				type: histItem.type || "application/octet-stream",
 			});
-			histItem.objectUrl = URL.createObjectURL(blob);
-			histItem.status = "completed";
-			histItem.progress = 100;
+			// Show file preview instead of auto-completing
+			addPendingFile(id, histItem.name, histItem.size, histItem.type, blob);
 		} catch (e) {
 			histItem.status = "error";
 			console.error("Blob creation failed:", e);
+			renderHistory();
 		}
-		renderHistory();
 	}
 	webrtcState.activeReceives.delete(id);
 }
@@ -169,18 +168,7 @@ async function handleDataMessage(event) {
 				receivedSize: 0,
 				meta: msg,
 			});
-			transferHistory.push({
-				id: msg.id,
-				name: msg.name,
-				size: msg.size,
-				type: msg.fileType || "application/octet-stream",
-				direction: "received",
-				status: "transferring",
-				progress: 0,
-				timestamp: new Date(),
-				objectUrl: null,
-			});
-			renderHistory();
+			console.log("[WebRTC] File meta received:", msg.name);
 			if (msg.size === 0) completeReceiveWebRTC(msg.id);
 		} else if (msg.type === "end") {
 			completeReceiveWebRTC(msg.id);

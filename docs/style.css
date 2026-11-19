@@ -124,6 +124,45 @@ h6 {
 	font-weight: 500;
 }
 
+/* Chat messages */
+.chat-message {
+	padding: 12px;
+	border-radius: 12px;
+}
+.chat-message.sent {
+	background: linear-gradient(135deg, #3a3a44 0%, #2a2a2e 100%);
+	border: 1px solid #3a3a44;
+	margin-left: 20px;
+}
+.chat-message.received {
+	background: linear-gradient(135deg, #2a2a2e 0%, #1a1a1e 100%);
+	border: 1px solid #2a2a2e;
+	margin-right: 20px;
+}
+.chat-message-time {
+	text-align: right;
+}
+
+/* File previews */
+.preview-image {
+	width: 100%;
+	height: 120px;
+	object-fit: cover;
+	border-radius: 8px;
+	border: 1px solid #2a2a2e;
+}
+
+/* Pending file styling */
+.pending-file-card {
+	border: 1px solid #3a3a3e;
+	background: linear-gradient(135deg, #1e1e22 0%, #18181b 100%);
+}
+
+/* Side by side layout */
+.grid-cols-2 {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @media (max-width: 1023px) {
 	main {
 		padding: 8px !important;
@@ -133,5 +172,13 @@ h6 {
 	}
 	.inner-panel {
 		border-radius: 16px;
+	}
+
+	/* Mobile layout adjustments */
+	.grid-cols-1 {
+		grid-template-columns: 1fr;
+	}
+	.flex-col {
+		flex-direction: column;
 	}
 }

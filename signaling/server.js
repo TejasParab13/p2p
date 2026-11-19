@@ -75,8 +75,8 @@ function validateRoomId(roomId) {
 // ---------------------------------------------------------------------------
 // File storage for pending transfers
 // ---------------------------------------------------------------------------
-const pendingFiles = new Map(); // roomId -> Array of pending files
-const clientSessions = new Map(); // socket.id -> { roomId, lastSeen }
+const pendingFiles = new Map(); // roomId -> Map of id -> { meta, chunks, complete }
+const roomClients = new Map(); // roomId -> Set of socket.ids
 
 // ---------------------------------------------------------------------------
 // Socket events
@@ -93,46 +93,52 @@ io.on("connection", (socket) => {
 		const room = result.sanitized;
 		socket.join(room);
 		console.log(`[WS] ${socket.id} joined room: ${room}`);
-		
-		// Store client session
-		clientSessions.set(socket.id, { roomId: room, lastSeen: Date.now() });
-		
+
+		// Track clients in room
+		if (!roomClients.has(room)) {
+			roomClients.set(room, new Set());
+		}
+		roomClients.get(room).add(socket.id);
+
 		// Send any pending files for this room
 		if (pendingFiles.has(room)) {
-			const pending = pendingFiles.get(room);
-			if (pending.length > 0) {
-				console.log(`[WS] Delivering ${pending.length} pending files to ${socket.id} in room ${room}`);
-				
-				// Send each pending file
-				pending.forEach((fileSignal) => {
-					// Send file meta first
-					socket.emit("signal", {
-						type: "file-meta",
-						id: fileSignal.id,
-						name: fileSignal.name,
-						size: fileSignal.size,
-						fileType: fileSignal.fileType,
-						timestamp: fileSignal.timestamp,
-						sender: fileSignal.sender
-					});
-					
-					// Send file chunks
-					if (fileSignal.chunks && fileSignal.chunks.length > 0) {
-						fileSignal.chunks.forEach((chunk) => {
-							socket.emit("signal", chunk);
-						});
-					}
-					
-					// Send file end
-					socket.emit("signal", {
-						type: "file-end",
-						id: fileSignal.id
-					});
+			const roomPendingFiles = pendingFiles.get(room);
+			console.log(`[WS] Delivering pending files to ${socket.id} in room ${room}`);
+
+			roomPendingFiles.forEach((fileData, fileId) => {
+				if (!fileData.complete) {
+					console.log(`[WS] Skipping incomplete file ${fileId}`);
+					return;
+				}
+
+				console.log(`[WS] Delivering pending file ${fileId} (${fileData.meta.name}) to ${socket.id}`);
+
+				// Send file meta
+				socket.emit("signal", {
+					type: "file-meta",
+					id: fileId,
+					name: fileData.meta.name,
+					size: fileData.meta.size,
+					fileType: fileData.meta.fileType,
+					timestamp: fileData.meta.timestamp,
 				});
-				
-				// Clear pending files after delivery
-				pendingFiles.delete(room);
-			}
+
+				// Send file chunks
+				if (fileData.chunks && fileData.chunks.length > 0) {
+					fileData.chunks.forEach((chunk) => {
+						socket.emit("signal", chunk);
+					});
+				}
+
+				// Send file end
+				socket.emit("signal", {
+					type: "file-end",
+					id: fileId,
+				});
+			});
+
+			// Clear pending files after delivery
+			pendingFiles.delete(room);
 		}
 	});
 
@@ -150,71 +156,70 @@ io.on("connection", (socket) => {
 			}
 			return;
 		}
-		
+
 		const room = result.sanitized;
 		const signal = data.signal;
-		
+
 		// Handle file signals for storage when peer is offline
 		if (signal.type && signal.type.startsWith("file-")) {
 			const clientsInRoom = io.sockets.adapter.rooms.get(room);
 			const otherClientCount = clientsInRoom ? clientsInRoom.size - 1 : 0;
-			
+
 			// If no other clients in room, store the file for later delivery
 			if (otherClientCount === 0) {
 				console.log(`[WS] Storing file signal for offline peer in room ${room}`);
-				
+
 				if (!pendingFiles.has(room)) {
-					pendingFiles.set(room, []);
+					pendingFiles.set(room, new Map());
 				}
-				
-				const pending = pendingFiles.get(room);
-				
+
+				const roomPendingFiles = pendingFiles.get(room);
+
 				if (signal.type === "file-meta") {
 					// Start new pending file
-					pending.push({
-						type: "file-meta",
-						id: signal.id,
-						name: signal.name,
-						size: signal.size,
-						fileType: signal.fileType,
-						timestamp: signal.timestamp || Date.now(),
-						sender: socket.id,
-						chunks: []
+					roomPendingFiles.set(signal.id, {
+						meta: {
+							id: signal.id,
+							name: signal.name,
+							size: signal.size,
+							fileType: signal.fileType,
+							timestamp: signal.timestamp || Date.now(),
+						},
+						chunks: [],
+						complete: false,
 					});
 				} else if (signal.type === "file-chunk") {
-					// Add chunk to latest pending file
-					const latestFile = pending[pending.length - 1];
-					if (latestFile && latestFile.id === signal.id) {
-						latestFile.chunks.push(signal);
+					// Add chunk to pending file
+					const pendingFile = roomPendingFiles.get(signal.id);
+					if (pendingFile) {
+						pendingFile.chunks.push(signal);
 					}
 				} else if (signal.type === "file-end") {
 					// Mark pending file as complete
-					const fileIndex = pending.findIndex(f => f.id === signal.id);
-					if (fileIndex !== -1) {
-						console.log(`[WS] File ${signal.id} stored for offline delivery`);
+					const pendingFile = roomPendingFiles.get(signal.id);
+					if (pendingFile) {
+						pendingFile.complete = true;
+						console.log(`[WS] File ${signal.id} complete with ${pendingFile.chunks.length} chunks`);
+
+						// Store for max 24 hours
+						setTimeout(() => {
+							if (roomPendingFiles.has(signal.id)) {
+								roomPendingFiles.delete(signal.id);
+							}
+						}, 24 * 60 * 60 * 1000);
 					}
 				}
-				
-				// Store for max 24 hours
-				setTimeout(() => {
-					const currentPending = pendingFiles.get(room);
-					if (currentPending) {
-						pendingFiles.set(room, currentPending.filter(f => 
-							f.timestamp > Date.now() - (24 * 60 * 60 * 1000)
-						));
-					}
-				}, 24 * 60 * 60 * 1000);
-				
+
 				if (typeof callback === "function") {
 					callback({ ok: true, stored: true });
 				}
 				return;
 			}
 		}
-		
+
 		// Forward signal to other clients in the room
 		socket.to(room).emit("signal", signal);
-		
+
 		if (typeof callback === "function") {
 			callback({ ok: true });
 		}
@@ -222,7 +227,14 @@ io.on("connection", (socket) => {
 
 	socket.on("disconnect", (reason) => {
 		console.log(`[WS] Client disconnected: ${socket.id} (${reason})`);
-		clientSessions.delete(socket.id);
+
+		// Remove from room tracking
+		roomClients.forEach((clients, room) => {
+			if (clients.has(socket.id)) {
+				clients.delete(socket.id);
+				console.log(`[WS] Removed ${socket.id} from room ${room}`);
+			}
+		});
 	});
 });
 

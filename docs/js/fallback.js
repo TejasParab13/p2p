@@ -1,4 +1,4 @@
-import { transferHistory, renderHistory } from "./history.js";
+import { transferHistory, renderHistory, addPendingFile } from "./history.js";
 import { setConnectionStatus, showError } from "./utils.js";
 
 export const fallbackState = {
@@ -189,18 +189,7 @@ export function handleFallbackSignal(signal) {
 		fallbackState.receivedSize = 0;
 		fallbackState.complete = false;
 		fallbackState.objectUrl = null;
-		transferHistory.push({
-			id: signal.id,
-			name: signal.name,
-			size: signal.size,
-			type: signal.fileType || "application/octet-stream",
-			direction: "received",
-			status: "transferring",
-			progress: 0,
-			timestamp: new Date(),
-			objectUrl: null,
-		});
-		renderHistory();
+		console.log("[Fallback] File meta received:", signal.name);
 		if (signal.size === 0) completeFallbackReceive(signal.id);
 	} else if (signal.type === "file-chunk") {
 		if (!fallbackState.meta || fallbackState.meta.id !== signal.id) return;
@@ -235,15 +224,13 @@ function completeFallbackReceive(id) {
 			const blob = new Blob(fallbackState.receiveBuffer, {
 				type: histItem.type || "application/octet-stream",
 			});
-			fallbackState.objectUrl = URL.createObjectURL(blob);
-			histItem.objectUrl = fallbackState.objectUrl;
-			histItem.status = "completed";
-			histItem.progress = 100;
+			// Show file preview instead of auto-completing
+			addPendingFile(id, histItem.name, histItem.size, histItem.type, blob);
 		} catch (e) {
 			histItem.status = "error";
 			console.error("Fallback blob creation failed:", e);
+			renderHistory();
 		}
-		renderHistory();
 	}
 	fallbackState.receiveBuffer = [];
 	fallbackState.meta = null;

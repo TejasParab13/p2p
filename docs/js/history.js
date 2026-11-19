@@ -4,6 +4,7 @@ export let transferHistory = [];
 export let historyListPC, historyListMobile, historyEmptyPC, historyEmptyMobile;
 export let currentFilter = "all";
 export const downloadedSet = new Set();
+export const pendingFiles = new Map(); // id -> { file data, metadata }
 
 export function setFilter(filter) {
 	currentFilter = filter;
@@ -39,6 +40,11 @@ export function renderHistory() {
 	if (currentFilter === "sent") filteredItems = items.filter((item) => item.direction === "sent");
 	else if (currentFilter === "received")
 		filteredItems = items.filter((item) => item.direction === "received");
+
+	// Add pending files at the top
+	const pendingItems = Array.from(pendingFiles.values()).map(p => p.metadata);
+	filteredItems = [...pendingItems, ...filteredItems];
+
 	const isEmpty = filteredItems.length === 0;
 
 	// Update empty state – avoid double‑toggling if both refs point to the same element
@@ -50,6 +56,29 @@ export function renderHistory() {
 	}
 
 	const generateHTML = (item) => {
+		// Handle pending files with preview
+		if (item.status === "pending") {
+			const previewHTML = generatePreview(item);
+			return `<div class="fade-in p-3 rounded-xl bg-amber-900/20 border border-amber-500/40 transition-colors">
+				<div class="flex items-start gap-3">
+					<div class="shrink-0">${getFileIcon(item.type, item.name)}</div>
+					<div class="flex-1 min-w-0">
+						<p class="text-sm font-medium text-zinc-200 truncate" title="${item.name}">${item.name}</p>
+						<span class="text-xs text-zinc-400">${formatBytes(item.size)} • Pending</span>
+						${previewHTML}
+						<div class="flex gap-2 mt-3">
+							<button onclick="window.acceptFile('${item.id}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium px-3 py-2 rounded-lg transition">
+								Accept & Download
+							</button>
+							<button onclick="window.declineFile('${item.id}')" class="flex-1 bg-red-600/80 hover:bg-red-600 text-white text-xs font-medium px-3 py-2 rounded-lg transition">
+								Decline
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>`;
+		}
+
 		const isReceived = item.direction === "received";
 		let statusIcon;
 		if (item.status === "completed") {
@@ -93,6 +122,26 @@ export function renderHistory() {
 		</div>`;
 	};
 
+	function generatePreview(item) {
+		const pending = pendingFiles.get(item.id);
+		if (!pending || !pending.blob) return "";
+
+		// Image preview
+		if (item.type && item.type.startsWith("image/")) {
+			const url = URL.createObjectURL(pending.blob);
+			return `<div class="mt-2 rounded-lg overflow-hidden border border-zinc-700"><img src="${url}" alt="Preview" class="w-full h-32 object-cover" /></div>`;
+		}
+
+		// Text preview
+		if (item.type && item.type.startsWith("text/")) {
+			return `<div class="mt-2 p-2 rounded-lg bg-zinc-900/50 border border-zinc-700">
+				<p class="text-xs text-zinc-400 italic">Text file preview available after download</p>
+			</div>`;
+		}
+
+		return "";
+	}
+
 	const html = filteredItems.map(generateHTML).join("");
 	const emptyHTML = `<div class="h-full flex flex-col items-center justify-center text-zinc-600"><svg class="w-10 h-10 mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><p class="text-sm font-medium">${isEmpty ? "No files transferred yet" : "No matching files"}</p>${isEmpty ? '<p class="text-[10px] mt-0.5">Sent and received files appear here</p>' : ""}</div>`;
 
@@ -110,7 +159,67 @@ export function clearHistory() {
 	});
 	transferHistory = [];
 	downloadedSet.clear();
+	pendingFiles.clear();
+	renderHistory();
+}
+
+export function addPendingFile(id, name, size, type, blob) {
+	const metadata = {
+		id,
+		name,
+		size,
+		type,
+		direction: "received",
+		status: "pending",
+		timestamp: new Date(),
+	};
+	pendingFiles.set(id, { metadata, blob });
+	renderHistory();
+}
+
+export function acceptFile(id) {
+	const pending = pendingFiles.get(id);
+	if (!pending) return;
+
+	const { metadata, blob } = pending;
+	const url = URL.createObjectURL(blob);
+
+	// Add to transfer history
+	transferHistory.push({
+		...metadata,
+		status: "completed",
+		objectUrl: url,
+		progress: 100,
+	});
+
+	// Remove from pending
+	pendingFiles.delete(id);
+
+	// Trigger download
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = metadata.name;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+
+	markDownloaded(id);
+	renderHistory();
+}
+
+export function declineFile(id) {
+	const pending = pendingFiles.get(id);
+	if (!pending) return;
+
+	// Revoke blob URL if it exists
+	if (pending.blob) {
+		URL.revokeObjectURL(URL.createObjectURL(pending.blob));
+	}
+
+	pendingFiles.delete(id);
 	renderHistory();
 }
 
 window.markDownloaded = markDownloaded;
+window.acceptFile = acceptFile;
+window.declineFile = declineFile;
