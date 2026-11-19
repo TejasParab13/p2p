@@ -81,6 +81,8 @@ export function HistoryPanel({
       </div>
     </div>
   `;
+}
+
 export function ChatPanel({
 	chatId = "chat-messages",
 	inputId = "chat-input",
@@ -100,5 +102,4 @@ export function ChatPanel({
 			</div>
 		</div>
 	`;
-}
 }

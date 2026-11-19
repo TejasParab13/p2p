@@ -230,8 +230,6 @@ function handleModeChange(e) {
 		}
 		console.log("[Mode] changed to:", newMode);
 		currentMode = newMode;
-		// Don't reset hasPeer flag - preserve peer connection state
-		// hasPeer = false;  // REMOVED - this was causing status to show "Waiting for peer..."
 		applyMode();
 	}
 }
@@ -301,7 +299,6 @@ function setModeFromSignal(mode) {
 		radio.checked = radio.value === mode;
 	});
 	applyMode();
-	// Refresh chat UI when mode changes
 	updateChatUI();
 }
 
@@ -315,8 +312,6 @@ function applyMode() {
 	const mode = getSelectedMode();
 	console.log("[applyMode] current mode:", mode, "isInitiator:", isInitiator);
 
-	// If already connected in this mode, do nothing but still refresh status
-	// NOTE: Only skip if we're in the same mode AND actively connected in that mode
 	if (mode === currentMode) {
 		if (
 			mode === "webrtc" &&
@@ -336,12 +331,9 @@ function applyMode() {
 		}
 	}
 
-	// Check if we had a direct connection before resetting
 	const hadDirect = !!(webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open");
 
-	// Reset state
 	if (mode === "fallback" && hadDirect) {
-		// Switching from WebRTC to Relay - set flag to prevent status updates from WebRTC events
 		setSwitchingToRelay(true);
 	}
 	resetWebRTC();
@@ -351,13 +343,11 @@ function applyMode() {
 	if (mode === "fallback") {
 		activateFallback(hadDirect);
 		if (!isInitiator) {
-			// Host notifies client to switch to fallback
 			socket.emit("signal", {
 				room: currentRoom,
 				signal: { type: "mode-change", mode: "fallback" },
 			});
 		} else {
-			// Client confirms fallback activation to host
 			socket.emit("signal", {
 				room: currentRoom,
 				signal: { type: "fallback-ready" },
@@ -377,7 +367,6 @@ function applyMode() {
 	}
 
 	modeChangeInProgress = false;
-	// Refresh status after mode change
 	refreshStatus();
 }
 
@@ -538,7 +527,6 @@ async function handleSignal(signal) {
 		console.log("[Signal] client fallback is ready");
 		hasPeer = true;
 		if (!isInitiator) {
-			// Host updates status to connected via relay
 			refreshStatus();
 		}
 		return;
@@ -547,7 +535,6 @@ async function handleSignal(signal) {
 		handleFallbackSignal(signal);
 		return;
 	}
-	// Handle chat messages
 	if (signal.type === "chat-message" && signal.message) {
 		console.log("[handleSignal] received chat message:", signal.message);
 		handleChatMessage(signal.message, signal.timestamp);
@@ -677,7 +664,6 @@ if (!window.RTCPeerConnection) showError("WebRTC not supported. Use Relay mode."
 // ============================================================
 // 12. Initial view (will be called after DOM loads)
 // ============================================================
-// Defer updateView() until DOM is ready
 if (document.readyState === "loading") {
 	document.addEventListener("DOMContentLoaded", updateView);
 } else {
@@ -690,6 +676,15 @@ if (document.readyState === "loading") {
 
 /** Shared helper: validates connection then queues files for sending. */
 function enqueueFiles(files) {
+	// Production Safety: Prevent Out-Of-Memory crashes (1GB Limit)
+	const MAX_FILE_SIZE = 1024 * 1024 * 1024; // 1 GB
+	for (const file of files) {
+		if (file.size > MAX_FILE_SIZE) {
+			showError(`File "${file.name}" exceeds the 1GB limit.`, errorBox);
+			return false;
+		}
+	}
+
 	const hasWebRTC = webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open";
 	const hasFallback = fallbackState.active;
 	if (!hasWebRTC && !hasFallback) {
@@ -760,7 +755,6 @@ document.addEventListener("drop", (e) => {
 // 14. Chat functionality
 // ============================================================
 function updateChatUI() {
-	// Refresh chat container when mode changes
 	const chatContainers = document.querySelectorAll('[id*="chat-container"]');
 	chatContainers.forEach((container) => {
 		container.innerHTML = ChatPanel({});
@@ -769,14 +763,12 @@ function updateChatUI() {
 }
 
 function attachChatListeners() {
-	// Chat send button click handler
 	document.querySelectorAll('[id*="chat-send"]').forEach((sendBtn) => {
 		sendBtn.addEventListener('click', () => {
 			const chatContainer = sendBtn.closest('[id*="chat-container"]');
 			const chatInput = chatContainer.querySelector('[id*="chat-input"]');
-			const chatMessages = chatContainer.querySelector('[id*="chat-messages"]');
 			
-			if (!chatInput || !chatMessages) return;
+			if (!chatInput) return;
 			
 			const message = chatInput.value.trim();
 			if (message) {
@@ -786,7 +778,6 @@ function attachChatListeners() {
 		});
 	});
 
-	// Chat input enter key handler
 	document.querySelectorAll('[id*="chat-input"]').forEach((input) => {
 		input.addEventListener('keypress', (e) => {
 			if (e.key === 'Enter' && !e.shiftKey) {
@@ -803,23 +794,34 @@ function attachChatListeners() {
 function sendChatMessage(message) {
 	if (!message || !message.trim()) return;
 	
-	// Add message to chat UI
-	const chatContainer = document.querySelector('[id*="chat-container"]');
-	const chatMessages = chatContainer?.querySelector('[id*="chat-messages"]');
-	
-	if (chatMessages) {
+	// Target ONLY visible chat containers to prevent duplicates
+	document.querySelectorAll('[id*="chat-messages"]').forEach(chatMessages => {
+		if (chatMessages.closest('.hidden')) return; 
+		
 		const messageDiv = document.createElement('div');
-		messageDiv.className = 'chat-message sent';
-		messageDiv.innerHTML = `
-			<div class="mb-1">You</div>
-			<p class="text-sm">${message}</p>
-			<div class="chat-message-time">${new Date().toLocaleTimeString()}</div>
-		`;
+		messageDiv.className = 'chat-message sent mb-3';
+		
+		// Security Fix: Use textContent to prevent XSS
+		const header = document.createElement('div');
+		header.className = 'mb-1 text-xs text-zinc-500';
+		header.textContent = 'You';
+		
+		const text = document.createElement('p');
+		text.className = 'text-sm';
+		text.textContent = message;
+		
+		const time = document.createElement('div');
+		time.className = 'chat-message-time text-[10px] text-zinc-500 mt-1';
+		time.textContent = new Date().toLocaleTimeString();
+
+		messageDiv.appendChild(header);
+		messageDiv.appendChild(text);
+		messageDiv.appendChild(time);
+		
 		chatMessages.appendChild(messageDiv);
 		chatMessages.scrollTop = chatMessages.scrollHeight;
-	}
+	});
 
-	// Send via signaling
 	socket.emit('signal', {
 		room: currentRoom,
 		signal: { type: 'chat-message', message, timestamp: new Date().toISOString() }
@@ -827,20 +829,33 @@ function sendChatMessage(message) {
 }
 
 function handleChatMessage(message, timestamp) {
-	const chatContainer = document.querySelector('[id*="chat-container"]');
-	const chatMessages = chatContainer?.querySelector('[id*="chat-messages"]');
-	
-	if (chatMessages) {
+	// Target ONLY visible chat containers
+	document.querySelectorAll('[id*="chat-messages"]').forEach(chatMessages => {
+		if (chatMessages.closest('.hidden')) return;
+
 		const messageDiv = document.createElement('div');
-		messageDiv.className = 'chat-message received';
-		messageDiv.innerHTML = `
-			<div class="mb-1">Peer</div>
-			<p class="text-sm">${message}</p>
-			<div class="chat-message-time">${new Date(timestamp).toLocaleTimeString()}</div>
-		`;
+		messageDiv.className = 'chat-message received mb-3';
+		
+		// Security Fix: Use textContent to prevent XSS
+		const header = document.createElement('div');
+		header.className = 'mb-1 text-xs text-zinc-500';
+		header.textContent = 'Peer';
+		
+		const text = document.createElement('p');
+		text.className = 'text-sm';
+		text.textContent = message;
+		
+		const time = document.createElement('div');
+		time.className = 'chat-message-time text-[10px] text-zinc-500 mt-1';
+		time.textContent = new Date(timestamp).toLocaleTimeString();
+
+		messageDiv.appendChild(header);
+		messageDiv.appendChild(text);
+		messageDiv.appendChild(time);
+		
 		chatMessages.appendChild(messageDiv);
 		chatMessages.scrollTop = chatMessages.scrollHeight;
-	}
+	});
 }
 
 // ============================================================

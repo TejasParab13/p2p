@@ -1,444 +1,332 @@
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>P2P File Share</title>
-		<script src="https://cdn.tailwindcss.com"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-		<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-		<link rel="stylesheet" href="style.css" />
-		<script type="module" src="js/config.js"></script>
-		<script type="module" src="js/utils.js"></script>
-		<script type="module" src="js/history.js"></script>
-		<script type="module" src="js/webrtc.js"></script>
-		<script type="module" src="js/fallback.js"></script>
-		<script type="module" src="js/main.js"></script>
-	</head>
-	<body>
-		<div class="outer-container">
-			<div class="inner-panel">
-				<div
-					id="error-box"
-					class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500/20 border border-red-500/40 text-red-200 rounded-lg px-5 py-2.5 text-sm font-medium max-w-lg w-full text-center"
-				></div>
 
-				<main class="h-full w-full overflow-hidden p-3 lg:p-4 flex items-center">
-					<!-- ============================================== -->
-					<!--                     PC HOST                    -->
-					<!-- ============================================== -->
-					<div
-						id="pc-host-view"
-						class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6"
-					>
-						<div class="lg:col-span-2 flex flex-col gap-3 lg:gap-4 h-full overflow-hidden">
-							<!-- TITLE BAR -->
-							<div
-								class="shrink-0 bg-white rounded-full px-4 py-2 flex items-center gap-2 shadow-sm w-fit"
-							>
-								<svg
-									class="w-5 h-5 text-[#1a1a1a]"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M13 10V3L4 14h7v7l9-11h-7z"
-									/>
-								</svg>
-								<h1 class="text-lg font-bold tracking-tight text-[#1a1a1a]">
-									P2P <span class="text-[#555]">Share</span>
-								</h1>
-							</div>
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>P2P File Share</title>
+	<script src="https://cdn.tailwindcss.com"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+	<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+	<link rel="stylesheet" href="style.css" />
+	<script type="module" src="js/config.js"></script>
+	<script type="module" src="js/utils.js"></script>
+	<script type="module" src="js/history.js"></script>
+	<script type="module" src="js/webrtc.js"></script>
+	<script type="module" src="js/fallback.js"></script>
+	<script type="module" src="js/main.js"></script>
+</head>
 
-							<div class="flex-1 flex flex-col gap-3 lg:gap-4 min-h-0">
-								<!-- Connection row -->
-								<div
-									class="flex-1 bg-[#18181b] border border-[#2a2a2e] rounded-xl p-5 overflow-hidden flex flex-row items-center justify-between gap-4"
-								>
-									<div class="flex-1 flex flex-col items-start justify-center h-full">
-										<h2
-											class="text-3xl lg:text-4xl font-bold text-white tracking-tight leading-tight max-w-xs"
-										>
-											Scan the QR code<br />to connect
-										</h2>
-										<div class="mt-4 w-full">
-											<p class="text-sm text-zinc-400 mb-1.5">or enter a room code to Join</p>
-											<div
-												class="flex rounded-full bg-[#121214] p-1 border border-[#2a2a2e] w-full max-w-xs"
-											>
-												<input
-													type="text"
-													id="room-code-input"
-													placeholder="Enter Code"
-													class="flex-1 bg-transparent border-none rounded-full px-4 py-1.5 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none"
-												/>
-												<button
-													onclick="window.joinRoom()"
-													class="bg-white text-[#1a1a1a] px-4 py-1.5 rounded-full text-sm font-medium hover:bg-zinc-200 transition shrink-0"
-												>
-													Join
-												</button>
-											</div>
-										</div>
-									</div>
-									<!-- QR code section -->
-									<div class="flex-1 flex flex-col items-center justify-center h-full">
-										<div id="qrcode" class="bg-white p-3 rounded-xl"></div>
-										<div
-											class="mt-3 bg-[#1a1a1a] border border-zinc-700 rounded-xl px-4 py-2.5 flex items-center justify-between w-[160px] mx-auto transition hover:border-zinc-500"
-										>
-											<span class="text-xs text-zinc-400 font-medium">Room</span>
-											<span
-												id="room-code-display"
-												class="text-sm font-mono text-white font-semibold tracking-wider"
-											></span>
-										</div>
-									</div>
-									<div
-										class="flex-[0.5] flex flex-col items-center justify-center h-full border-l border-zinc-700/50 pl-4"
-									>
-										<p id="connection-info" class="text-center text-xs text-zinc-400 leading-tight">
-											Waiting to connect...
-										</p>
-									</div>
-								</div>
+<body>
+	<div class="outer-container">
+		<div class="inner-panel">
+			<div id="error-box"
+				class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500/20 border border-red-500/40 text-red-200 rounded-lg px-5 py-2.5 text-sm font-medium max-w-lg w-full text-center">
+			</div>
 
-								<!-- Mode + Drop row -->
-								<div class="flex-1 flex gap-3 lg:gap-4 min-h-0">
-									<!-- Mode selector container – takes 2/5, full width -->
-									<div class="flex-[2] flex flex-col gap-2 min-h-0">
-										<h3 class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
-											Transfer Mode
-										</h3>
-										<div
-											class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex-1 flex flex-col justify-start items-start min-h-0 overflow-hidden"
-										>
-											<p class="text-sm font-medium text-zinc-300 mb-3">
-												Select the method of file transfer
-											</p>
-											<div id="pc-host-mode-container" class="w-full"></div>
-											<p class="text-xs text-zinc-500 mt-3 leading-relaxed">
-												<span class="text-zinc-400 font-medium">Direct:</span> Peer‑to‑peer
-												connection (fastest).<br />
-												<span class="text-zinc-400 font-medium">Relay:</span> Uses server as
-												fallback (works when P2P fails).
-											</p>
-										</div>
-									</div>
-									<!-- Drop zone container – takes 3/5, full height -->
-									<div class="flex-[3] flex flex-col min-h-0">
-										<div
-											class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex-1 flex flex-col min-h-0 overflow-hidden"
-										>
-											<h2
-												class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-2"
-											>
-												<svg
-													class="w-4 h-4 text-[#b0b0b0]"
-													fill="none"
-													stroke="currentColor"
-													viewBox="0 0 24 24"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														stroke-width="2"
-														d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-													/>
-												</svg>
-												Send Files
-											</h2>
-											<div id="pc-host-drop-container" class="flex-1 flex flex-col"></div>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-						<!-- History panel container -->
-						<div id="pc-host-history-container" class="flex flex-col h-full"></div>
-					</div>
-
-					<!-- ============================================== -->
-					<!--                    PC CLIENT                   -->
-					<!-- ============================================== -->
-					<!-- Changed to 5-column grid with left 3, right 2 -->
-					<div
-						id="pc-client-view"
-						class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6"
-					>
-						<div class="lg:col-span-3 flex flex-col gap-3 lg:gap-4 h-full overflow-hidden">
-							<!-- TITLE BAR -->
-							<div
-								class="shrink-0 bg-white rounded-full px-4 py-2 flex items-center gap-2 shadow-sm w-fit"
-							>
-								<svg
-									class="w-5 h-5 text-[#1a1a1a]"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M13 10V3L4 14h7v7l9-11h-7z"
-									/>
-								</svg>
-								<h1 class="text-lg font-bold tracking-tight text-[#1a1a1a]">
-									P2P <span class="text-[#555]">Share</span>
-								</h1>
-							</div>
-
-							<div class="flex-1 flex flex-col gap-3 lg:gap-4 min-h-0">
-								<!-- Join row -->
-								<div
-									class="flex-1 bg-[#18181b] border border-[#2a2a2e] rounded-xl p-5 overflow-hidden flex flex-row items-center justify-between gap-4"
-								>
-									<div class="flex-1 flex flex-col items-start justify-center h-full">
-										<h2
-											class="text-3xl lg:text-4xl font-bold text-white tracking-tight leading-tight max-w-xs"
-										>
-											Join a room
-										</h2>
-										<div class="mt-4 w-full">
-											<p class="text-sm text-zinc-400 mb-1.5">Enter a room code to connect</p>
-											<div
-												class="flex rounded-full bg-[#121214] p-1 border border-[#2a2a2e] w-full max-w-xs"
-											>
-												<input
-													type="text"
-													id="room-code-input-client"
-													placeholder="Enter Code"
-													class="flex-1 bg-transparent border-none rounded-full px-4 py-1.5 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none"
-												/>
-												<button
-													onclick="window.joinRoom()"
-													class="bg-white text-[#1a1a1a] px-4 py-1.5 rounded-full text-sm font-medium hover:bg-zinc-200 transition shrink-0"
-												>
-													Join
-												</button>
-											</div>
-										</div>
-									</div>
-									<div class="flex-1 flex flex-col items-center justify-center h-full">
-										<div id="client-status" class="text-center text-xl text-zinc-400">
-											Waiting to connect...
-										</div>
-									</div>
-									<div
-										class="flex-[0.5] flex flex-col items-center justify-center h-full border-l border-zinc-700/50 pl-4"
-									>
-										<p
-											id="connection-info-client"
-											class="text-center text-xs text-zinc-400 leading-tight"
-										>
-											Not connected
-										</p>
-									</div>
-								</div>
-
-								<!-- Drop zone only – takes full width of the row -->
-								<div class="flex-1 flex gap-3 lg:gap-4 min-h-0">
-									<div class="flex-1 flex flex-col min-h-0">
-										<div
-											class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex-1 flex flex-col min-h-0 overflow-hidden"
-										>
-											<h2
-												class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-2"
-											>
-												<svg
-													class="w-4 h-4 text-[#b0b0b0]"
-													fill="none"
-													stroke="currentColor"
-													viewBox="0 0 24 24"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														stroke-width="2"
-														d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-													/>
-												</svg>
-												Send Files
-											</h2>
-											<div id="pc-client-drop-container" class="flex-1 flex flex-col"></div>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-						<!-- History panel container – takes 2 columns (right side) -->
-						<div id="pc-client-history-container" class="lg:col-span-2 flex flex-col h-full"></div>
-					</div>
-
-					<!-- ============================================== -->
-					<!--                   MOBILE HOST                  -->
-					<!-- ============================================== -->
-					<div
-						id="mobile-host-view"
-						class="hidden w-full h-full flex flex-col gap-2 overflow-y-auto pb-3"
-					>
-						<!-- TITLE BAR – floating/pill style, minimal vertical space -->
-						<div
-							class="shrink-0 bg-white rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm w-fit mx-auto"
-						>
-							<svg
-								class="w-4 h-4 text-[#1a1a1a]"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M13 10V3L4 14h7v7l9-11h-7z"
-								/>
+			<main class="h-full w-full overflow-hidden p-3 lg:p-4 flex items-center">
+				<!-- ============================================== -->
+				<!--                     PC HOST                    -->
+				<!-- ============================================== -->
+				<div id="pc-host-view" class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+					<div class="lg:col-span-2 flex flex-col gap-3 lg:gap-4 h-full overflow-hidden">
+						<!-- TITLE BAR -->
+						<div class="shrink-0 bg-white rounded-full px-4 py-2 flex items-center gap-2 shadow-sm w-fit">
+							<svg class="w-5 h-5 text-[#1a1a1a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+									d="M13 10V3L4 14h7v7l9-11h-7z" />
 							</svg>
-							<h1 class="text-base font-bold tracking-tight text-[#1a1a1a]">
+							<h1 class="text-lg font-bold tracking-tight text-[#1a1a1a]">
 								P2P <span class="text-[#555]">Share</span>
 							</h1>
 						</div>
 
-						<!-- QR & info split row -->
-						<div
-							class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 flex flex-row items-stretch gap-3 shrink-0 aspect-[2/1] w-full"
-						>
-							<!-- Left: room code + status -->
-							<div class="flex-1 flex flex-col items-start justify-center min-w-0 pr-2 gap-2">
-								<div class="w-full">
-									<span class="text-xs text-zinc-400">Room</span>
-									<span
-										id="room-code-display-mobile"
-										class="text-lg font-mono text-white font-semibold truncate block w-full"
-									></span>
-									<p
-										id="connection-status-mobile"
-										class="text-xs text-zinc-400 mt-0.5 truncate w-full"
-									>
-										Waiting for connection...
+						<div class="flex-1 flex flex-col gap-3 lg:gap-4 min-h-0">
+							<!-- Connection row -->
+							<div
+								class="flex-1 bg-[#18181b] border border-[#2a2a2e] rounded-xl p-5 overflow-hidden flex flex-row items-center justify-between gap-4">
+								<div class="flex-1 flex flex-col items-start justify-center h-full">
+									<h2
+										class="text-3xl lg:text-4xl font-bold text-white tracking-tight leading-tight max-w-xs">
+										Scan the QR code<br />to connect
+									</h2>
+									<div class="mt-4 w-full">
+										<p class="text-sm text-zinc-400 mb-1.5">or enter a room code to Join</p>
+										<div
+											class="flex rounded-full bg-[#121214] p-1 border border-[#2a2a2e] w-full max-w-xs">
+											<input type="text" id="room-code-input" placeholder="Enter Code"
+												class="flex-1 bg-transparent border-none rounded-full px-4 py-1.5 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none" />
+											<button onclick="window.joinRoom()"
+												class="bg-white text-[#1a1a1a] px-4 py-1.5 rounded-full text-sm font-medium hover:bg-zinc-200 transition shrink-0">
+												Join
+											</button>
+										</div>
+									</div>
+								</div>
+								<!-- QR code section -->
+								<div class="flex-1 flex flex-col items-center justify-center h-full">
+									<div id="qrcode" class="bg-white p-3 rounded-xl"></div>
+									<div
+										class="mt-3 bg-[#1a1a1a] border border-zinc-700 rounded-xl px-4 py-2.5 flex items-center justify-between w-[160px] mx-auto transition hover:border-zinc-500">
+										<span class="text-xs text-zinc-400 font-medium">Room</span>
+										<span id="room-code-display"
+											class="text-sm font-mono text-white font-semibold tracking-wider"></span>
+									</div>
+								</div>
+								<div
+									class="flex-[0.5] flex flex-col items-center justify-center h-full border-l border-zinc-700/50 pl-4">
+									<p id="connection-info" class="text-center text-xs text-zinc-400 leading-tight">
+										Waiting to connect...
 									</p>
 								</div>
-								<div class="w-full">
-									<p class="text-[10px] text-zinc-500 mb-1">or enter code to Join</p>
-									<div class="flex rounded-full bg-[#121214] p-0.5 border border-[#2a2a2e] w-full">
-										<input
-											type="text"
-											id="room-code-input-mobile-host"
-											placeholder="Enter Code"
-											class="flex-1 bg-transparent border-none rounded-full px-2 py-1 text-xs text-zinc-300 placeholder-zinc-500 focus:outline-none min-w-0"
-										/>
-										<button
-											onclick="window.joinRoom()"
-											class="bg-white text-[#1a1a1a] px-2 py-1 rounded-full text-xs font-medium hover:bg-zinc-200 transition shrink-0"
-										>
-											Join
-										</button>
+							</div>
+
+							<!-- Mode + Drop row -->
+							<div class="flex-1 flex gap-3 lg:gap-4 min-h-0">
+								<!-- Mode selector container -->
+								<div class="flex-[2] flex flex-col gap-2 min-h-0">
+									<h3 class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+										Transfer Mode
+									</h3>
+									<div
+										class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex-1 flex flex-col justify-start items-start min-h-0 overflow-hidden">
+										<p class="text-sm font-medium text-zinc-300 mb-3">
+											Select the method of file transfer
+										</p>
+										<div id="pc-host-mode-container" class="w-full"></div>
+										<p class="text-xs text-zinc-500 mt-3 leading-relaxed">
+											<span class="text-zinc-400 font-medium">Direct:</span> Peer‑to‑peer
+											connection (fastest).<br />
+											<span class="text-zinc-400 font-medium">Relay:</span> Uses server as
+											fallback (works when P2P fails).
+										</p>
+									</div>
+								</div>
+								<!-- Drop zone container -->
+								<div class="flex-[3] flex flex-col min-h-0">
+									<div
+										class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex-1 flex flex-col min-h-0 overflow-hidden">
+										<h2
+											class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-2">
+											<svg class="w-4 h-4 text-[#b0b0b0]" fill="none" stroke="currentColor"
+												viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+													d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+											</svg>
+											Send Files
+										</h2>
+										<div id="pc-host-drop-container" class="flex-1 flex flex-col"></div>
 									</div>
 								</div>
 							</div>
-							<!-- Right: QR code -->
-							<div
-								class="flex-1 flex items-center justify-center bg-white p-2.5 rounded-xl aspect-square h-full"
-							>
-								<div
-									id="qrcode-mobile"
-									class="w-full h-full flex items-center justify-center"
-								></div>
-							</div>
 						</div>
-
-						<!-- Mode selector – compact like mobile client -->
-						<div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 shrink-0">
-							<h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
-								Transfer Mode
-							</h3>
-							<div id="mobile-host-mode-container"></div>
-						</div>
-
-						<!-- Drop zone -->
-						<div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 shrink-0">
-							<h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
-								Send Files
-							</h3>
-							<div id="mobile-host-drop-container" class="min-h-[80px] flex flex-col"></div>
-						</div>
-
-						<!-- History – takes remaining space -->
-						<div id="mobile-host-history-container" class="flex-1 min-h-0"></div>
 					</div>
+					<!-- Right Side Panels (History + Chat) -->
+					<div class="flex flex-col gap-4 h-full overflow-hidden">
+						<div id="pc-host-history-container" class="flex-1 min-h-0 flex flex-col"></div>
+						<div id="pc-host-chat-container" class="flex-1 min-h-0 flex flex-col"></div>
+					</div>
+				</div>
 
-					<!-- ============================================== -->
-					<!--                  MOBILE CLIENT                 -->
-					<!-- ============================================== -->
-					<div
-						id="mobile-client-view"
-						class="hidden w-full h-full flex flex-col gap-2 overflow-y-auto pb-3"
-					>
+				<!-- ============================================== -->
+				<!--                    PC CLIENT                   -->
+				<!-- ============================================== -->
+				<div id="pc-client-view" class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
+					<div class="lg:col-span-3 flex flex-col gap-3 lg:gap-4 h-full overflow-hidden">
 						<!-- TITLE BAR -->
-						<div
-							class="shrink-0 bg-white rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm w-fit mx-auto"
-						>
-							<svg
-								class="w-4 h-4 text-[#1a1a1a]"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M13 10V3L4 14h7v7l9-11h-7z"
-								/>
+						<div class="shrink-0 bg-white rounded-full px-4 py-2 flex items-center gap-2 shadow-sm w-fit">
+							<svg class="w-5 h-5 text-[#1a1a1a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+									d="M13 10V3L4 14h7v7l9-11h-7z" />
 							</svg>
-							<h1 class="text-base font-bold tracking-tight text-[#1a1a1a]">
+							<h1 class="text-lg font-bold tracking-tight text-[#1a1a1a]">
 								P2P <span class="text-[#555]">Share</span>
 							</h1>
 						</div>
 
-						<!-- Connection + Join row -->
-						<div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 shrink-0">
-							<p id="connection-status-mobile-client" class="text-zinc-400 text-sm text-center">
-								Connecting...
-							</p>
-							<div class="mt-2">
+						<div class="flex-1 flex flex-col gap-3 lg:gap-4 min-h-0">
+							<!-- Join row -->
+							<div
+								class="flex-1 bg-[#18181b] border border-[#2a2a2e] rounded-xl p-5 overflow-hidden flex flex-row items-center justify-between gap-4">
+								<div class="flex-1 flex flex-col items-start justify-center h-full">
+									<h2
+										class="text-3xl lg:text-4xl font-bold text-white tracking-tight leading-tight max-w-xs">
+										Join a room
+									</h2>
+									<div class="mt-4 w-full">
+										<p class="text-sm text-zinc-400 mb-1.5">Enter a room code to connect</p>
+										<div
+											class="flex rounded-full bg-[#121214] p-1 border border-[#2a2a2e] w-full max-w-xs">
+											<input type="text" id="room-code-input-client" placeholder="Enter Code"
+												class="flex-1 bg-transparent border-none rounded-full px-4 py-1.5 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none" />
+											<button onclick="window.joinRoom()"
+												class="bg-white text-[#1a1a1a] px-4 py-1.5 rounded-full text-sm font-medium hover:bg-zinc-200 transition shrink-0">
+												Join
+											</button>
+										</div>
+									</div>
+								</div>
+								<div class="flex-1 flex flex-col items-center justify-center h-full">
+									<div id="client-status" class="text-center text-xl text-zinc-400">
+										Waiting to connect...
+									</div>
+								</div>
 								<div
-									class="flex rounded-full bg-[#121214] p-1 border border-[#2a2a2e] w-full max-w-xs mx-auto"
-								>
-									<input
-										type="text"
-										id="room-code-input-mobile-client"
-										placeholder="Enter Code"
-										class="flex-1 bg-transparent border-none rounded-full px-3 py-1 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none"
-									/>
-									<button
-										onclick="window.joinRoom()"
-										class="bg-white text-[#1a1a1a] px-3 py-1 rounded-full text-sm font-medium hover:bg-zinc-200 transition shrink-0"
-									>
+									class="flex-[0.5] flex flex-col items-center justify-center h-full border-l border-zinc-700/50 pl-4">
+									<p id="connection-info-client"
+										class="text-center text-xs text-zinc-400 leading-tight">
+										Not connected
+									</p>
+								</div>
+							</div>
+
+							<!-- Drop zone only -->
+							<div class="flex-1 flex gap-3 lg:gap-4 min-h-0">
+								<div class="flex-1 flex flex-col min-h-0">
+									<div
+										class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-4 flex-1 flex flex-col min-h-0 overflow-hidden">
+										<h2
+											class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-2">
+											<svg class="w-4 h-4 text-[#b0b0b0]" fill="none" stroke="currentColor"
+												viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+													d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+											</svg>
+											Send Files
+										</h2>
+										<div id="pc-client-drop-container" class="flex-1 flex flex-col"></div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					<!-- Right Side Panels (History + Chat) -->
+					<div class="lg:col-span-2 flex flex-col gap-4 h-full overflow-hidden">
+						<div id="pc-client-history-container" class="flex-1 min-h-0 flex flex-col"></div>
+						<div id="pc-client-chat-container" class="flex-1 min-h-0 flex flex-col"></div>
+					</div>
+				</div>
+
+				<!-- ============================================== -->
+				<!--                   MOBILE HOST                  -->
+				<!-- ============================================== -->
+				<div id="mobile-host-view" class="hidden w-full h-full flex flex-col gap-2 overflow-y-auto pb-3">
+					<!-- TITLE BAR -->
+					<div
+						class="shrink-0 bg-white rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm w-fit mx-auto">
+						<svg class="w-4 h-4 text-[#1a1a1a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+								d="M13 10V3L4 14h7v7l9-11h-7z" />
+						</svg>
+						<h1 class="text-base font-bold tracking-tight text-[#1a1a1a]">
+							P2P <span class="text-[#555]">Share</span>
+						</h1>
+					</div>
+
+					<!-- QR & info split row -->
+					<div
+						class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 flex flex-row items-stretch gap-3 shrink-0 aspect-[2/1] w-full">
+						<div class="flex-1 flex flex-col items-start justify-center min-w-0 pr-2 gap-2">
+							<div class="w-full">
+								<span class="text-xs text-zinc-400">Room</span>
+								<span id="room-code-display-mobile"
+									class="text-lg font-mono text-white font-semibold truncate block w-full"></span>
+								<p id="connection-status-mobile" class="text-xs text-zinc-400 mt-0.5 truncate w-full">
+									Waiting for connection...
+								</p>
+							</div>
+							<div class="w-full">
+								<p class="text-[10px] text-zinc-500 mb-1">or enter code to Join</p>
+								<div class="flex rounded-full bg-[#121214] p-0.5 border border-[#2a2a2e] w-full">
+									<input type="text" id="room-code-input-mobile-host" placeholder="Enter Code"
+										class="flex-1 bg-transparent border-none rounded-full px-2 py-1 text-xs text-zinc-300 placeholder-zinc-500 focus:outline-none min-w-0" />
+									<button onclick="window.joinRoom()"
+										class="bg-white text-[#1a1a1a] px-2 py-1 rounded-full text-xs font-medium hover:bg-zinc-200 transition shrink-0">
 										Join
 									</button>
 								</div>
 							</div>
 						</div>
-
-						<!-- Drop zone (no mode selector) -->
-						<div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 shrink-0">
-							<h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
-								Send Files
-							</h3>
-							<div id="mobile-client-drop-container" class="min-h-[80px] flex flex-col"></div>
+						<div
+							class="flex-1 flex items-center justify-center bg-white p-2.5 rounded-xl aspect-square h-full">
+							<div id="qrcode-mobile" class="w-full h-full flex items-center justify-center"></div>
 						</div>
-
-						<!-- History – takes remaining space -->
-						<div id="mobile-client-history-container" class="flex-1 min-h-0"></div>
 					</div>
-				</main>
-			</div>
+
+					<!-- Mode selector -->
+					<div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 shrink-0">
+						<h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
+							Transfer Mode
+						</h3>
+						<div id="mobile-host-mode-container"></div>
+					</div>
+
+					<!-- Drop zone -->
+					<div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 shrink-0">
+						<h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
+							Send Files
+						</h3>
+						<div id="mobile-host-drop-container" class="min-h-[80px] flex flex-col"></div>
+					</div>
+
+					<!-- Right Side Panels (History + Chat) -->
+					<div class="flex-1 min-h-0 flex flex-col gap-2">
+						<div id="mobile-host-history-container" class="flex-1 min-h-0"></div>
+						<div id="mobile-host-chat-container" class="flex-1 min-h-0"></div>
+					</div>
+				</div>
+
+				<!-- ============================================== -->
+				<!--                  MOBILE CLIENT                 -->
+				<!-- ============================================== -->
+				<div id="mobile-client-view" class="hidden w-full h-full flex flex-col gap-2 overflow-y-auto pb-3">
+					<!-- TITLE BAR -->
+					<div
+						class="shrink-0 bg-white rounded-full px-4 py-1.5 flex items-center gap-2 shadow-sm w-fit mx-auto">
+						<svg class="w-4 h-4 text-[#1a1a1a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+								d="M13 10V3L4 14h7v7l9-11h-7z" />
+						</svg>
+						<h1 class="text-base font-bold tracking-tight text-[#1a1a1a]">
+							P2P <span class="text-[#555]">Share</span>
+						</h1>
+					</div>
+
+					<!-- Connection + Join row -->
+					<div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 shrink-0">
+						<p id="connection-status-mobile-client" class="text-zinc-400 text-sm text-center">
+							Connecting...
+						</p>
+						<div class="mt-2">
+							<div
+								class="flex rounded-full bg-[#121214] p-1 border border-[#2a2a2e] w-full max-w-xs mx-auto">
+								<input type="text" id="room-code-input-mobile-client" placeholder="Enter Code"
+									class="flex-1 bg-transparent border-none rounded-full px-3 py-1 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none" />
+								<button onclick="window.joinRoom()"
+									class="bg-white text-[#1a1a1a] px-3 py-1 rounded-full text-sm font-medium hover:bg-zinc-200 transition shrink-0">
+									Join
+								</button>
+							</div>
+						</div>
+					</div>
+
+					<!-- Drop zone -->
+					<div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 shrink-0">
+						<h3 class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">
+							Send Files
+						</h3>
+						<div id="mobile-client-drop-container" class="min-h-[80px] flex flex-col"></div>
+					</div>
+
+					<!-- Right Side Panels (History + Chat) -->
+					<div class="flex-1 min-h-0 flex flex-col gap-2">
+						<div id="mobile-client-history-container" class="flex-1 min-h-0"></div>
+						<div id="mobile-client-chat-container" class="flex-1 min-h-0"></div>
+					</div>
+				</div>
+			</main>
 		</div>
-	</body>
+	</div>
+</body>
+
 </html>

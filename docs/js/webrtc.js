@@ -24,7 +24,6 @@ export function setSwitchingToRelay(value) {
 	isSwitchingToRelay = value;
 }
 
-// --- Allow updating status elements after view changes ---
 export function setWebRTCStatusElements(connStatusEl, statusTextEl) {
 	connectionStatusRef = connStatusEl;
 	statusTextRef = statusTextEl;
@@ -63,7 +62,6 @@ function throttleRender(histItem, progress) {
 	}
 }
 
-// frame a binary chunk with a transfer ID header
 function frameChunk(id, chunkBuffer) {
 	const idBytes = new TextEncoder().encode(id);
 	const framed = new Uint8Array(4 + idBytes.byteLength + chunkBuffer.byteLength);
@@ -104,7 +102,8 @@ export async function sendFileWebRTC(file, transferId) {
 			}),
 		);
 		if (file.size > 0) {
-			const chunkSize = 16384;
+			// Production Performance: Increased from 16KB to 64KB
+			const chunkSize = 65536;
 			let offset = 0;
 			while (offset < file.size) {
 				await waitUntilBufferLow(webrtcState.dataChannel, 2 * 1024 * 1024);
@@ -188,7 +187,6 @@ async function handleDataMessage(event) {
 		}
 		return;
 	}
-	// Binary chunk – framed
 	let arrayBuffer = null;
 	let byteLength = 0;
 	if (event.data instanceof ArrayBuffer) {
@@ -227,7 +225,6 @@ export function setupDataChannel(channel, processSendQueueCallback) {
 	channel.binaryType = "arraybuffer";
 	channel.bufferedAmountLowThreshold = 256 * 1024;
 	channel.onopen = () => {
-		// Don't update status if we're in fallback mode
 		if (fallbackState.active || isSwitchingToRelay) {
 			console.log("[WebRTC] ignoring channel open, in fallback mode");
 			return;
@@ -284,7 +281,6 @@ export function createPeerConnection(roomId, onDataChannel, processSendQueueCall
 		if (onDataChannel) onDataChannel(webrtcState.dataChannel);
 	};
 	pc.onconnectionstatechange = () => {
-		// Don't update status if we're in fallback mode or switching to relay
 		if (fallbackState.active || isSwitchingToRelay) {
 			console.log("[WebRTC] ignoring connection state change, in fallback mode");
 			return;
