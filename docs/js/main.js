@@ -675,9 +675,14 @@ socket.on("connect_error", (err) => {
 if (!window.RTCPeerConnection) showError("WebRTC not supported. Use Relay mode.", errorBox);
 
 // ============================================================
-// 12. Initial view
+// 12. Initial view (will be called after DOM loads)
 // ============================================================
-updateView();
+// Defer updateView() until DOM is ready
+if (document.readyState === "loading") {
+	document.addEventListener("DOMContentLoaded", updateView);
+} else {
+	updateView();
+}
 
 // ============================================================
 // 13. File selection handlers
