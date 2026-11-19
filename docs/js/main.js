@@ -1,12 +1,6 @@
 import { SIGNALING_URL } from "./config.js";
 import { showError, setConnectionStatus } from "./utils.js";
-import {
-	transferHistory,
-	renderHistory,
-	clearHistory,
-	initHistory,
-	setFilter,
-} from "./history.js";
+import { transferHistory, renderHistory, clearHistory, initHistory, setFilter } from "./history.js";
 import {
 	webrtcState,
 	initWebRTC,
@@ -74,9 +68,7 @@ function isMobileDevice() {
 function injectComponents(viewId, mode = currentMode) {
 	const modeContainer = document.getElementById(`${viewId}-mode-container`);
 	const dropContainer = document.getElementById(`${viewId}-drop-container`);
-	const historyContainer = document.getElementById(
-		`${viewId}-history-container`,
-	);
+	const historyContainer = document.getElementById(`${viewId}-history-container`);
 
 	if (modeContainer) {
 		modeContainer.innerHTML = ModeSelector({ selected: mode });
@@ -89,9 +81,7 @@ function injectComponents(viewId, mode = currentMode) {
 		if (fileInput) {
 			fileInput.removeEventListener("change", handleFileSelectDirect);
 			fileInput.addEventListener("change", handleFileSelectDirect);
-			console.log(
-				`[injectComponents] attached direct listener to ${inputId}`,
-			);
+			console.log(`[injectComponents] attached direct listener to ${inputId}`);
 		}
 	}
 	if (historyContainer) {
@@ -116,9 +106,7 @@ function updateView() {
 			injectComponents("mobile-host");
 			const qrEl = document.getElementById("qrcode-mobile");
 			if (qrEl) makeQr(currentRoom, qrEl);
-			const roomDisplay = document.getElementById(
-				"room-code-display-mobile",
-			);
+			const roomDisplay = document.getElementById("room-code-display-mobile");
 			if (roomDisplay) roomDisplay.textContent = currentRoom;
 			connStatusEl = document.getElementById("connection-status-mobile");
 			statusTextEl = null;
@@ -137,9 +125,7 @@ function updateView() {
 		if (isMobileDevice()) {
 			mobileClientView.classList.remove("hidden");
 			injectComponents("mobile-client");
-			connStatusEl = document.getElementById(
-				"connection-status-mobile-client",
-			);
+			connStatusEl = document.getElementById("connection-status-mobile-client");
 			statusTextEl = null;
 		} else {
 			pcClientView.classList.remove("hidden");
@@ -197,51 +183,27 @@ function refreshStatus() {
 function updateConnectionStatus(connStatusEl, statusTextEl) {
 	// Check real connectivity
 	const isWebRTCConnected =
-		webrtcState.dataChannel &&
-		webrtcState.dataChannel.readyState === "open";
+		webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open";
 	const isRelayConnected = fallbackState.active && hasPeer;
 
 	if (currentMode === "webrtc") {
 		if (isWebRTCConnected) {
-			setConnectionStatus(
-				connStatusEl,
-				statusTextEl,
-				"Connected Directly via P2P!",
-				"good",
-			);
+			setConnectionStatus(connStatusEl, statusTextEl, "Connected Directly via P2P!", "good");
 		} else {
-			setConnectionStatus(
-				connStatusEl,
-				statusTextEl,
-				"Waiting for peer...",
-				"warn",
-			);
+			setConnectionStatus(connStatusEl, statusTextEl, "Waiting for peer...", "warn");
 		}
 	} else if (currentMode === "fallback") {
 		if (isRelayConnected) {
-			setConnectionStatus(
-				connStatusEl,
-				statusTextEl,
-				"Connected via Relay",
-				"good",
-			);
+			setConnectionStatus(connStatusEl, statusTextEl, "Connected via Relay", "good");
 		} else {
-			setConnectionStatus(
-				connStatusEl,
-				statusTextEl,
-				"Waiting for peer...",
-				"warn",
-			);
+			setConnectionStatus(connStatusEl, statusTextEl, "Waiting for peer...", "warn");
 		}
 	}
 }
 
 // ----- Direct file input handler (attached after injection) -----
 function handleFileSelectDirect(event) {
-	console.log(
-		"[handleFileSelectDirect] event triggered on:",
-		event.target.id,
-	);
+	console.log("[handleFileSelectDirect] event triggered on:", event.target.id);
 	handleFileSelect(event);
 }
 
@@ -349,7 +311,11 @@ function applyMode() {
 	// If already connected in this mode, do nothing but still refresh status
 	// NOTE: Only skip if we're in the same mode AND actively connected in that mode
 	if (mode === currentMode) {
-		if (mode === "webrtc" && webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open") {
+		if (
+			mode === "webrtc" &&
+			webrtcState.dataChannel &&
+			webrtcState.dataChannel.readyState === "open"
+		) {
 			console.log("[applyMode] already connected via WebRTC");
 			modeChangeInProgress = false;
 			refreshStatus();
@@ -364,10 +330,7 @@ function applyMode() {
 	}
 
 	// Check if we had a direct connection before resetting
-	const hadDirect = !!(
-		webrtcState.dataChannel &&
-		webrtcState.dataChannel.readyState === "open"
-	);
+	const hadDirect = !!(webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open");
 
 	// Reset state
 	if (mode === "fallback" && hadDirect) {
@@ -398,9 +361,7 @@ function applyMode() {
 			console.log("[applyMode] Client starting WebRTC initiator...");
 			startInitiator();
 		} else {
-			console.log(
-				"[applyMode] Host sending mode-change signal to client",
-			);
+			console.log("[applyMode] Host sending mode-change signal to client");
 			socket.emit("signal", {
 				room: currentRoom,
 				signal: { type: "mode-change", mode: "webrtc" },
@@ -455,10 +416,7 @@ function startInitiator() {
 		})
 		.catch((err) => {
 			console.error("[startInitiator] error:", err);
-			showError(
-				"Failed to start WebRTC offer. Try Relay mode.",
-				errorBox,
-			);
+			showError("Failed to start WebRTC offer. Try Relay mode.", errorBox);
 			initiatorStarted = false;
 		});
 }
@@ -477,16 +435,10 @@ async function processSendQueue() {
 		console.log("[processSendQueue] idle or no items");
 		return;
 	}
-	console.log(
-		"[processSendQueue] processing, queue length:",
-		webrtcState.sendQueue.length,
-	);
+	console.log("[processSendQueue] processing, queue length:", webrtcState.sendQueue.length);
 
 	if (!fallbackState.active) {
-		if (
-			!webrtcState.dataChannel ||
-			webrtcState.dataChannel.readyState !== "open"
-		) {
+		if (!webrtcState.dataChannel || webrtcState.dataChannel.readyState !== "open") {
 			console.log(
 				"[processSendQueue] no open data channel, readyState:",
 				webrtcState.dataChannel?.readyState || "null",
@@ -517,12 +469,7 @@ async function processSendQueue() {
 	const item = webrtcState.sendQueue.shift();
 	const file = item.file;
 	const transferId = item.id;
-	console.log(
-		"[processSendQueue] sending file:",
-		file.name,
-		"id:",
-		transferId,
-	);
+	console.log("[processSendQueue] sending file:", file.name, "id:", transferId);
 	try {
 		if (
 			webrtcState.dataChannel &&
@@ -561,10 +508,7 @@ async function processSendQueue() {
 // ============================================================
 async function handleSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
-	console.log(
-		"[handleSignal] received:",
-		signal.type || (signal.sdp ? "sdp" : "candidate"),
-	);
+	console.log("[handleSignal] received:", signal.type || (signal.sdp ? "sdp" : "candidate"));
 
 	// Any signal from the other peer confirms presence
 	hasPeer = true;
@@ -598,44 +542,29 @@ async function handleSignal(signal) {
 	}
 
 	if (getSelectedMode() === "fallback") {
-		console.log(
-			"[handleSignal] ignoring WebRTC signal because mode is fallback",
-		);
+		console.log("[handleSignal] ignoring WebRTC signal because mode is fallback");
 		return;
 	}
 
 	if (signal.sdp) {
 		if (!webrtcState.peerConnection) {
 			if (isInitiator) {
-				console.warn(
-					"[handleSignal] no peer connection on client, but should exist",
-				);
+				console.warn("[handleSignal] no peer connection on client, but should exist");
 				return;
 			} else {
-				console.log(
-					"[handleSignal] host creating peer connection for incoming offer",
-				);
-				webrtcState.peerConnection = createPeerConnection(
-					currentRoom,
-					null,
-					processSendQueue,
-				);
+				console.log("[handleSignal] host creating peer connection for incoming offer");
+				webrtcState.peerConnection = createPeerConnection(currentRoom, null, processSendQueue);
 			}
 		}
 
 		const pc = webrtcState.peerConnection;
 		if (signal.sdp.type === "offer") {
 			if (pc.signalingState !== "stable") {
-				console.warn(
-					"[handleSignal] offer ignored, signaling state:",
-					pc.signalingState,
-				);
+				console.warn("[handleSignal] offer ignored, signaling state:", pc.signalingState);
 				return;
 			}
 			console.log("[handleSignal] setting remote description (offer)");
-			await pc.setRemoteDescription(
-				new RTCSessionDescription(signal.sdp),
-			);
+			await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
 			await flushPendingCandidates();
 			const answer = await pc.createAnswer();
 			await pc.setLocalDescription(answer);
@@ -651,16 +580,11 @@ async function handleSignal(signal) {
 			});
 		} else if (signal.sdp.type === "answer") {
 			if (pc.signalingState !== "have-local-offer") {
-				console.warn(
-					"[handleSignal] answer ignored, signaling state:",
-					pc.signalingState,
-				);
+				console.warn("[handleSignal] answer ignored, signaling state:", pc.signalingState);
 				return;
 			}
 			console.log("[handleSignal] setting remote description (answer)");
-			await pc.setRemoteDescription(
-				new RTCSessionDescription(signal.sdp),
-			);
+			await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
 			await flushPendingCandidates();
 		}
 	} else if (signal.candidate) {
@@ -691,8 +615,7 @@ function makeQr(roomId, qrEl) {
 	}
 	qrEl.innerHTML = "";
 	const u = new URL(window.location.href);
-	if (u.pathname && !u.pathname.includes(".") && !u.pathname.endsWith("/"))
-		u.pathname += "/";
+	if (u.pathname && !u.pathname.includes(".") && !u.pathname.endsWith("/")) u.pathname += "/";
 	u.search = `?room=${roomId}`;
 	u.hash = "";
 	if (roomUrlText) roomUrlText.textContent = u.toString();
@@ -728,19 +651,15 @@ function joinAndMaybeStart() {
 }
 
 socket.on("signal", (signal) => {
-	handleSignal(signal).catch((err) =>
-		showError("Signaling error: " + err.message, errorBox),
-	);
+	handleSignal(signal).catch((err) => showError("Signaling error: " + err.message, errorBox));
 });
 socket.on("connect", joinAndMaybeStart);
 socket.on("connect_error", (err) => {
 	connectErrorCount += 1;
-	if (connectErrorCount >= 3)
-		showError(`Signaling connection failed: ${err.message}`, errorBox);
+	if (connectErrorCount >= 3) showError(`Signaling connection failed: ${err.message}`, errorBox);
 });
 
-if (!window.RTCPeerConnection)
-	showError("WebRTC not supported. Use Relay mode.", errorBox);
+if (!window.RTCPeerConnection) showError("WebRTC not supported. Use Relay mode.", errorBox);
 
 // ============================================================
 // 12. Initial view
@@ -748,31 +667,19 @@ if (!window.RTCPeerConnection)
 updateView();
 
 // ============================================================
-// 13. File selection handlers (direct listeners only)
+// 13. File selection handlers
 // ============================================================
-async function handleFileSelect(event) {
-	const input = event.target;
-	const files = input.files;
-	if (!files || files.length === 0) return;
-	console.log("[handleFileSelect] files selected:", files.length);
 
-	const hasWebRTC =
-		webrtcState.dataChannel &&
-		webrtcState.dataChannel.readyState === "open";
+/** Shared helper: validates connection then queues files for sending. */
+function enqueueFiles(files) {
+	const hasWebRTC = webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open";
 	const hasFallback = fallbackState.active;
-	console.log(
-		"[handleFileSelect] hasWebRTC:",
-		hasWebRTC,
-		"hasFallback:",
-		hasFallback,
-	);
 	if (!hasWebRTC && !hasFallback) {
 		showError(
 			"No active connection. Please ensure you are connected or switch to Relay mode.",
 			errorBox,
 		);
-		input.value = "";
-		return;
+		return false;
 	}
 	for (const file of files) {
 		const id = crypto.randomUUID();
@@ -790,8 +697,17 @@ async function handleFileSelect(event) {
 		});
 	}
 	renderHistory();
-	input.value = "";
 	processSendQueue();
+	return true;
+}
+
+async function handleFileSelect(event) {
+	const input = event.target;
+	const files = input.files;
+	if (!files || files.length === 0) return;
+	console.log("[handleFileSelect] files selected:", files.length);
+	enqueueFiles(files);
+	input.value = "";
 }
 
 // Drag & drop delegation
@@ -817,34 +733,7 @@ document.addEventListener("drop", (e) => {
 		const files = e.dataTransfer.files;
 		if (files.length) {
 			console.log("[drop] files dropped:", files.length);
-			const hasWebRTC =
-				webrtcState.dataChannel &&
-				webrtcState.dataChannel.readyState === "open";
-			const hasFallback = fallbackState.active;
-			if (!hasWebRTC && !hasFallback) {
-				showError(
-					"No active connection. Please ensure you are connected or switch to Relay mode.",
-					errorBox,
-				);
-				return;
-			}
-			for (const file of files) {
-				const id = crypto.randomUUID();
-				webrtcState.sendQueue.push({ file, id });
-				transferHistory.push({
-					id,
-					name: file.name,
-					size: file.size,
-					type: file.type || "application/octet-stream",
-					direction: "sent",
-					status: "queued",
-					progress: 0,
-					timestamp: new Date(),
-					objectUrl: null,
-				});
-			}
-			renderHistory();
-			processSendQueue();
+			enqueueFiles(files);
 		}
 	}
 });

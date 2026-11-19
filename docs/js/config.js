@@ -1,6 +1,17 @@
+// ---------------------------------------------------------------------------
 // Configuration and constants
-export const SIGNALING_URL = "https://p2p-rmpb.onrender.com";
+// ---------------------------------------------------------------------------
+// To override the signaling URL, set window.P2P_SIGNALING_URL before this
+// module loads, or update the value below for your deployment.
+// ---------------------------------------------------------------------------
 
+export const SIGNALING_URL =
+	(typeof window !== "undefined" && window.P2P_SIGNALING_URL) || "https://p2p-rmpb.onrender.com";
+
+// ICE servers for WebRTC peer connections.
+// These use publicly available STUN/TURN servers.  For production, consider
+// deploying your own TURN server (e.g. coturn) and providing credentials
+// via environment-specific config.
 export const RTC_CONFIG = {
 	iceServers: [
 		{ urls: "stun:stun.l.google.com:19302" },

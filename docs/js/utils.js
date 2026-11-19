@@ -56,7 +56,7 @@ export function setConnectionStatus(connectionStatus, statusText, text, state) {
 			"text-red-400",
 			"text-indigo-400",
 			"text-zinc-400",
-			"animate-pulse"
+			"animate-pulse",
 		);
 
 		// Add appropriate state classes
@@ -64,7 +64,8 @@ export function setConnectionStatus(connectionStatus, statusText, text, state) {
 			el.classList.add("text-emerald-400");
 		} else if (state === "bad") {
 			el.classList.add("text-red-400");
-		} else { // "warn" or waiting state
+		} else {
+			// "warn" or waiting state
 			el.classList.add("text-indigo-400", "animate-pulse");
 		}
 	};

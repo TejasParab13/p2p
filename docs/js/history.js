@@ -36,8 +36,7 @@ export function renderHistory() {
 	trimHistory();
 	const items = transferHistory.slice(-20).reverse();
 	let filteredItems = items;
-	if (currentFilter === "sent")
-		filteredItems = items.filter((item) => item.direction === "sent");
+	if (currentFilter === "sent") filteredItems = items.filter((item) => item.direction === "sent");
 	else if (currentFilter === "received")
 		filteredItems = items.filter((item) => item.direction === "received");
 	const isEmpty = filteredItems.length === 0;
@@ -73,9 +72,7 @@ export function renderHistory() {
 			const isDownloaded = downloadedSet.has(item.id);
 			const iconHtml = isDownloaded ? grayDownloadIcon : downloadIcon;
 			const title = isDownloaded ? "Download again" : "Download";
-			const extraClass = isDownloaded
-				? "opacity-60 hover:opacity-100"
-				: "";
+			const extraClass = isDownloaded ? "opacity-60 hover:opacity-100" : "";
 			actionButton = `<a href="${item.objectUrl}" download="${item.name}" class="shrink-0 ml-3 p-2 rounded-lg bg-zinc-800 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 transition-colors download-btn ${extraClass}" title="${title}" data-id="${item.id}" onclick="window.markDownloaded('${item.id}')">${iconHtml}</a>`;
 		} else {
 			actionButton = `<div class="shrink-0 ml-3 p-2">${statusIcon}</div>`;

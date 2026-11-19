@@ -113,9 +113,7 @@ export async function sendFileFallback(file, transferId) {
 		let offset = 0;
 		const sendChunk = (chunkData, off) => {
 			return new Promise((resolve, reject) => {
-				const base64 = btoa(
-					String.fromCharCode(...new Uint8Array(chunkData)),
-				);
+				const base64 = btoa(String.fromCharCode(...new Uint8Array(chunkData)));
 				socketRef.emit(
 					"signal",
 					{
@@ -145,8 +143,7 @@ export async function sendFileFallback(file, transferId) {
 			await sendChunk(data, offset);
 			offset += chunk.size || data.byteLength || 0;
 			const histItem2 = transferHistory.find((h) => h.id === transferId);
-			if (histItem2)
-				throttleRender(histItem2, (offset / file.size) * 100);
+			if (histItem2) throttleRender(histItem2, (offset / file.size) * 100);
 		}
 
 		await new Promise((resolve, reject) => {
@@ -216,11 +213,7 @@ export function handleFallbackSignal(signal) {
 			fallbackState.receivedSize += bytes.byteLength;
 			const histItem = transferHistory.find((h) => h.id === signal.id);
 			if (histItem && fallbackState.meta.size > 0) {
-				throttleRender(
-					histItem,
-					(fallbackState.receivedSize / fallbackState.meta.size) *
-						100,
-				);
+				throttleRender(histItem, (fallbackState.receivedSize / fallbackState.meta.size) * 100);
 			}
 			if (fallbackState.receivedSize >= fallbackState.meta.size) {
 				completeFallbackReceive(signal.id);
@@ -234,12 +227,7 @@ export function handleFallbackSignal(signal) {
 }
 
 function completeFallbackReceive(id) {
-	if (
-		fallbackState.complete ||
-		!fallbackState.meta ||
-		fallbackState.meta.id !== id
-	)
-		return;
+	if (fallbackState.complete || !fallbackState.meta || fallbackState.meta.id !== id) return;
 	fallbackState.complete = true;
 	const histItem = transferHistory.find((h) => h.id === id);
 	if (histItem) {
