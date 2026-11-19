@@ -23,7 +23,7 @@ import {
 } from "./fallback.js";
 
 // ---- Component builders ----
-import { ModeSelector, DropZone, HistoryPanel, ChatPanel } from "./components.js";
+import { ModeSelector, DropZone, HistoryPanel, ChatPanel, SectionTabs } from "./components.js";
 
 // ============================================================
 // 1. DOM references
@@ -46,8 +46,11 @@ let connectErrorCount = 0;
 const params = new URLSearchParams(window.location.search);
 const urlRoom = (params.get("room") || "").trim();
 const isInitiator = Boolean(urlRoom); // true → client (phone), false → host (PC)
-const currentRoom = urlRoom || Math.random().toString(36).substring(2, 9);
+// Generate a 4-digit numeric room code for ease of use
+const currentRoom = urlRoom || Math.floor(1000 + Math.random() * 9000).toString();
 let currentMode = "webrtc";
+let currentSectionTab = "transfers";
+let chatHistory = [];
 let retryTimeout = null;
 let retryStartedAt = null;
 const MAX_RETRY_MS = 30000;
@@ -66,11 +69,16 @@ function isMobileDevice() {
 }
 
 function injectComponents(viewId, mode = currentMode) {
+	const navContainer = document.getElementById(`${viewId}-nav-container`);
 	const modeContainer = document.getElementById(`${viewId}-mode-container`);
 	const dropContainer = document.getElementById(`${viewId}-drop-container`);
 	const historyContainer = document.getElementById(`${viewId}-history-container`);
 	const chatContainer = document.getElementById(`${viewId}-chat-container`);
 
+	if (navContainer) {
+		navContainer.innerHTML = SectionTabs({ viewId, active: currentSectionTab });
+		attachSectionTabListeners(viewId);
+	}
 	if (modeContainer) {
 		modeContainer.innerHTML = ModeSelector({ selected: mode });
 	}
@@ -89,10 +97,60 @@ function injectComponents(viewId, mode = currentMode) {
 		const listId = `history-list-${viewId}`;
 		const emptyId = `history-empty-${viewId}`;
 		historyContainer.innerHTML = HistoryPanel({ listId, emptyId });
+		if (currentSectionTab === "chat") {
+			historyContainer.classList.add("hidden");
+		} else {
+			historyContainer.classList.remove("hidden");
+		}
 	}
 	if (chatContainer) {
 		chatContainer.innerHTML = ChatPanel({});
 		attachChatListeners();
+		renderChatHistory();
+		if (currentSectionTab === "transfers") {
+			chatContainer.classList.add("hidden");
+		} else {
+			chatContainer.classList.remove("hidden");
+		}
+	}
+}
+
+function attachSectionTabListeners(viewId) {
+	document.querySelectorAll(`input[name="section-tab-${viewId}"]`).forEach((radio) => {
+		radio.removeEventListener("change", handleSectionTabChange);
+		radio.addEventListener("change", handleSectionTabChange);
+	});
+}
+
+function handleSectionTabChange(e) {
+	const viewId = e.target.closest("label")?.dataset.view;
+	const tab = e.target.value;
+	if (tab && viewId) {
+		switchSectionTab(tab, viewId);
+	}
+}
+
+function switchSectionTab(tab, viewId) {
+	currentSectionTab = tab;
+	// Synchronize radio state across all views
+	document.querySelectorAll(`input[value="${tab}"]`).forEach((radio) => {
+		if (radio.name.startsWith("section-tab-")) radio.checked = true;
+	});
+
+	const historyContainer = document.getElementById(`${viewId}-history-container`);
+	const chatContainer = document.getElementById(`${viewId}-chat-container`);
+	const badge = document.getElementById(`chat-badge-${viewId}`);
+
+	if (tab === "transfers") {
+		if (historyContainer) historyContainer.classList.remove("hidden");
+		if (chatContainer) chatContainer.classList.add("hidden");
+	} else if (tab === "chat") {
+		if (historyContainer) historyContainer.classList.add("hidden");
+		if (chatContainer) chatContainer.classList.remove("hidden");
+		if (badge) badge.classList.add("hidden");
+		// Auto scroll chat to newest messages
+		const chatBox = chatContainer?.querySelector('[id*="chat-messages"]');
+		if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
 	}
 }
 
@@ -151,6 +209,7 @@ function updateView() {
 	// Attach listeners
 	attachModeListeners();
 	attachFilterListeners();
+	attachRoomInputListeners();
 
 	// Re-init history
 	const viewPrefix = isInitiator
@@ -246,6 +305,20 @@ function handleFilterChange(e) {
 	if (radio.checked) setFilter(radio.value);
 }
 
+function attachRoomInputListeners() {
+	document.querySelectorAll('input[id^="room-code-input"]').forEach((input) => {
+		input.removeEventListener("keypress", handleRoomInputEnter);
+		input.addEventListener("keypress", handleRoomInputEnter);
+	});
+}
+
+function handleRoomInputEnter(e) {
+	if (e.key === "Enter") {
+		e.preventDefault();
+		window.joinRoom();
+	}
+}
+
 let resizeTimeout;
 window.addEventListener("resize", () => {
 	clearTimeout(resizeTimeout);
@@ -270,7 +343,7 @@ window.joinRoom = function () {
 	}
 	const code = encodeURIComponent(input.value.trim().toLowerCase());
 	if (!code) {
-		showError("Please enter a room code", errorBox);
+		showError("Please enter a 4-digit room code", errorBox);
 		return;
 	}
 	const url = new URL(window.location.href);
@@ -759,103 +832,108 @@ function updateChatUI() {
 	chatContainers.forEach((container) => {
 		container.innerHTML = ChatPanel({});
 		attachChatListeners();
+		renderChatHistory();
+	});
+}
+
+function renderChatHistory() {
+	document.querySelectorAll('[id*="chat-messages"]').forEach((chatMessages) => {
+		chatMessages.innerHTML = "";
+		chatHistory.forEach((item) => {
+			const messageDiv = document.createElement("div");
+			messageDiv.className = `chat-message ${item.sender} mb-3`;
+
+			const header = document.createElement("div");
+			header.className = "mb-1 text-xs text-zinc-500 font-medium";
+			header.textContent = item.sender === "sent" ? "You" : "Peer";
+
+			const text = document.createElement("p");
+			text.className = "text-sm text-zinc-200 break-words leading-relaxed";
+			text.textContent = item.text;
+
+			const time = document.createElement("div");
+			time.className = "chat-message-time text-[10px] text-zinc-500 mt-1";
+			time.textContent = new Date(item.timestamp).toLocaleTimeString([], {
+				hour: "2-digit",
+				minute: "2-digit",
+			});
+
+			messageDiv.appendChild(header);
+			messageDiv.appendChild(text);
+			messageDiv.appendChild(time);
+			chatMessages.appendChild(messageDiv);
+		});
+		chatMessages.scrollTop = chatMessages.scrollHeight;
 	});
 }
 
 function attachChatListeners() {
 	document.querySelectorAll('[id*="chat-send"]').forEach((sendBtn) => {
-		sendBtn.addEventListener('click', () => {
-			const chatContainer = sendBtn.closest('[id*="chat-container"]');
-			const chatInput = chatContainer.querySelector('[id*="chat-input"]');
-			
-			if (!chatInput) return;
-			
-			const message = chatInput.value.trim();
-			if (message) {
-				sendChatMessage(message);
-				chatInput.value = '';
-			}
-		});
+		sendBtn.removeEventListener("click", handleChatSendClick);
+		sendBtn.addEventListener("click", handleChatSendClick);
 	});
 
 	document.querySelectorAll('[id*="chat-input"]').forEach((input) => {
-		input.addEventListener('keypress', (e) => {
-			if (e.key === 'Enter' && !e.shiftKey) {
-				e.preventDefault();
-				const sendBtn = input.closest('[id*="chat-container"]').querySelector('[id*="chat-send"]');
-				if (sendBtn) {
-					sendBtn.click();
-				}
-			}
-		});
+		input.removeEventListener("keypress", handleChatInputKeypress);
+		input.addEventListener("keypress", handleChatInputKeypress);
 	});
+}
+
+function handleChatSendClick(e) {
+	const chatContainer = e.currentTarget.closest('[id*="chat-container"]');
+	const chatInput = chatContainer?.querySelector('[id*="chat-input"]');
+	if (!chatInput) return;
+	const message = chatInput.value.trim();
+	if (message) {
+		sendChatMessage(message);
+		chatInput.value = "";
+	}
+}
+
+function handleChatInputKeypress(e) {
+	if (e.key === "Enter" && !e.shiftKey) {
+		e.preventDefault();
+		const sendBtn = e.currentTarget
+			.closest('[id*="chat-container"]')
+			?.querySelector('[id*="chat-send"]');
+		if (sendBtn) {
+			sendBtn.click();
+		}
+	}
 }
 
 function sendChatMessage(message) {
 	if (!message || !message.trim()) return;
-	
-	// Target ONLY visible chat containers to prevent duplicates
-	document.querySelectorAll('[id*="chat-messages"]').forEach(chatMessages => {
-		if (chatMessages.closest('.hidden')) return; 
-		
-		const messageDiv = document.createElement('div');
-		messageDiv.className = 'chat-message sent mb-3';
-		
-		// Security Fix: Use textContent to prevent XSS
-		const header = document.createElement('div');
-		header.className = 'mb-1 text-xs text-zinc-500';
-		header.textContent = 'You';
-		
-		const text = document.createElement('p');
-		text.className = 'text-sm';
-		text.textContent = message;
-		
-		const time = document.createElement('div');
-		time.className = 'chat-message-time text-[10px] text-zinc-500 mt-1';
-		time.textContent = new Date().toLocaleTimeString();
 
-		messageDiv.appendChild(header);
-		messageDiv.appendChild(text);
-		messageDiv.appendChild(time);
-		
-		chatMessages.appendChild(messageDiv);
-		chatMessages.scrollTop = chatMessages.scrollHeight;
-	});
+	const item = {
+		sender: "sent",
+		text: message,
+		timestamp: new Date().toISOString(),
+	};
+	chatHistory.push(item);
+	renderChatHistory();
 
-	socket.emit('signal', {
+	socket.emit("signal", {
 		room: currentRoom,
-		signal: { type: 'chat-message', message, timestamp: new Date().toISOString() }
+		signal: { type: "chat-message", message, timestamp: item.timestamp },
 	});
 }
 
 function handleChatMessage(message, timestamp) {
-	// Target ONLY visible chat containers
-	document.querySelectorAll('[id*="chat-messages"]').forEach(chatMessages => {
-		if (chatMessages.closest('.hidden')) return;
+	const item = {
+		sender: "received",
+		text: message,
+		timestamp: timestamp || new Date().toISOString(),
+	};
+	chatHistory.push(item);
+	renderChatHistory();
 
-		const messageDiv = document.createElement('div');
-		messageDiv.className = 'chat-message received mb-3';
-		
-		// Security Fix: Use textContent to prevent XSS
-		const header = document.createElement('div');
-		header.className = 'mb-1 text-xs text-zinc-500';
-		header.textContent = 'Peer';
-		
-		const text = document.createElement('p');
-		text.className = 'text-sm';
-		text.textContent = message;
-		
-		const time = document.createElement('div');
-		time.className = 'chat-message-time text-[10px] text-zinc-500 mt-1';
-		time.textContent = new Date(timestamp).toLocaleTimeString();
-
-		messageDiv.appendChild(header);
-		messageDiv.appendChild(text);
-		messageDiv.appendChild(time);
-		
-		chatMessages.appendChild(messageDiv);
-		chatMessages.scrollTop = chatMessages.scrollHeight;
-	});
+	// If currently on transfers tab, display notification badge on chat tab
+	if (currentSectionTab !== "chat") {
+		document.querySelectorAll('[id^="chat-badge-"]').forEach((badge) => {
+			badge.classList.remove("hidden");
+		});
+	}
 }
 
 // ============================================================
@@ -866,5 +944,6 @@ window.clearHistory = clearHistory;
 window.addEventListener("load", () => {
 	attachModeListeners();
 	attachFilterListeners();
+	attachRoomInputListeners();
 	attachChatListeners();
 });

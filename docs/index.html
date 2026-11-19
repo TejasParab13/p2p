@@ -51,11 +51,12 @@
 										Scan the QR code<br />to connect
 									</h2>
 									<div class="mt-4 w-full">
-										<p class="text-sm text-zinc-400 mb-1.5">or enter a room code to Join</p>
+										<p class="text-sm text-zinc-400 mb-1.5">or enter 4-digit code to Join</p>
 										<div
 											class="flex rounded-full bg-[#121214] p-1 border border-[#2a2a2e] w-full max-w-xs">
-											<input type="text" id="room-code-input" placeholder="Enter Code"
-												class="flex-1 bg-transparent border-none rounded-full px-4 py-1.5 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none" />
+											<input type="text" id="room-code-input" placeholder="4-digit code"
+												maxlength="4" pattern="[0-9]{4}" inputmode="numeric"
+												class="flex-1 bg-transparent border-none rounded-full px-4 py-1.5 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none tracking-widest text-center font-mono" />
 											<button onclick="window.joinRoom()"
 												class="bg-white text-[#1a1a1a] px-4 py-1.5 rounded-full text-sm font-medium hover:bg-zinc-200 transition shrink-0">
 												Join
@@ -65,12 +66,12 @@
 								</div>
 								<!-- QR code section -->
 								<div class="flex-1 flex flex-col items-center justify-center h-full">
-									<div id="qrcode" class="bg-white p-3 rounded-xl"></div>
+									<div id="qrcode" class="bg-white p-3 rounded-xl shadow-lg relative"></div>
 									<div
-										class="mt-3 bg-[#1a1a1a] border border-zinc-700 rounded-xl px-4 py-2.5 flex items-center justify-between w-[160px] mx-auto transition hover:border-zinc-500">
-										<span class="text-xs text-zinc-400 font-medium">Room</span>
+										class="mt-3 bg-[#1a1a1a] border border-zinc-700 rounded-xl px-4 py-2 flex items-center justify-between w-[160px] mx-auto transition hover:border-zinc-500">
+										<span class="text-xs text-zinc-400 font-medium">Code</span>
 										<span id="room-code-display"
-											class="text-sm font-mono text-white font-semibold tracking-wider"></span>
+											class="text-lg font-mono text-white font-bold tracking-widest"></span>
 									</div>
 								</div>
 								<div
@@ -121,10 +122,11 @@
 							</div>
 						</div>
 					</div>
-					<!-- Right Side Panels (Chat + History side by side) -->
-					<div class="flex flex-row gap-4 h-full overflow-hidden">
+					<!-- Right Side Panels (Section 3: Tabbed Transfers / Chat) -->
+					<div class="flex flex-col h-full overflow-hidden">
+						<div id="pc-host-nav-container" class="shrink-0 mb-2"></div>
 						<div id="pc-host-history-container" class="flex-1 min-h-0 flex flex-col"></div>
-						<div id="pc-host-chat-container" class="flex-1 min-h-0 flex flex-col"></div>
+						<div id="pc-host-chat-container" class="hidden flex-1 min-h-0 flex flex-col"></div>
 					</div>
 				</div>
 
@@ -154,11 +156,12 @@
 										Join a room
 									</h2>
 									<div class="mt-4 w-full">
-										<p class="text-sm text-zinc-400 mb-1.5">Enter a room code to connect</p>
+										<p class="text-sm text-zinc-400 mb-1.5">Enter 4-digit code to connect</p>
 										<div
 											class="flex rounded-full bg-[#121214] p-1 border border-[#2a2a2e] w-full max-w-xs">
-											<input type="text" id="room-code-input-client" placeholder="Enter Code"
-												class="flex-1 bg-transparent border-none rounded-full px-4 py-1.5 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none" />
+											<input type="text" id="room-code-input-client" placeholder="4-digit code"
+												maxlength="4" pattern="[0-9]{4}" inputmode="numeric"
+												class="flex-1 bg-transparent border-none rounded-full px-4 py-1.5 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none tracking-widest text-center font-mono" />
 											<button onclick="window.joinRoom()"
 												class="bg-white text-[#1a1a1a] px-4 py-1.5 rounded-full text-sm font-medium hover:bg-zinc-200 transition shrink-0">
 												Join
@@ -200,10 +203,11 @@
 							</div>
 						</div>
 					</div>
-					<!-- Right Side Panels (Chat + History side by side) -->
-					<div class="lg:col-span-2 flex flex-row gap-4 h-full overflow-hidden">
+					<!-- Right Side Panels (Section 3: Tabbed Transfers / Chat) -->
+					<div class="lg:col-span-2 flex flex-col h-full overflow-hidden">
+						<div id="pc-client-nav-container" class="shrink-0 mb-2"></div>
 						<div id="pc-client-history-container" class="flex-1 min-h-0 flex flex-col"></div>
-						<div id="pc-client-chat-container" class="flex-1 min-h-0 flex flex-col"></div>
+						<div id="pc-client-chat-container" class="hidden flex-1 min-h-0 flex flex-col"></div>
 					</div>
 				</div>
 
@@ -228,18 +232,19 @@
 						class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 flex flex-row items-stretch gap-3 shrink-0 aspect-[2/1] w-full">
 						<div class="flex-1 flex flex-col items-start justify-center min-w-0 pr-2 gap-2">
 							<div class="w-full">
-								<span class="text-xs text-zinc-400">Room</span>
+								<span class="text-xs text-zinc-400">Code</span>
 								<span id="room-code-display-mobile"
-									class="text-lg font-mono text-white font-semibold truncate block w-full"></span>
+									class="text-xl font-mono text-white font-bold tracking-widest truncate block w-full"></span>
 								<p id="connection-status-mobile" class="text-xs text-zinc-400 mt-0.5 truncate w-full">
 									Waiting for connection...
 								</p>
 							</div>
 							<div class="w-full">
-								<p class="text-[10px] text-zinc-500 mb-1">or enter code to Join</p>
+								<p class="text-[10px] text-zinc-500 mb-1">or enter 4-digit code</p>
 								<div class="flex rounded-full bg-[#121214] p-0.5 border border-[#2a2a2e] w-full">
-									<input type="text" id="room-code-input-mobile-host" placeholder="Enter Code"
-										class="flex-1 bg-transparent border-none rounded-full px-2 py-1 text-xs text-zinc-300 placeholder-zinc-500 focus:outline-none min-w-0" />
+									<input type="text" id="room-code-input-mobile-host" placeholder="Code"
+										maxlength="4" pattern="[0-9]{4}" inputmode="numeric"
+										class="flex-1 bg-transparent border-none rounded-full px-2 py-1 text-xs text-zinc-300 placeholder-zinc-500 focus:outline-none min-w-0 font-mono tracking-wider text-center" />
 									<button onclick="window.joinRoom()"
 										class="bg-white text-[#1a1a1a] px-2 py-1 rounded-full text-xs font-medium hover:bg-zinc-200 transition shrink-0">
 										Join
@@ -269,10 +274,11 @@
 						<div id="mobile-host-drop-container" class="min-h-[80px] flex flex-col"></div>
 					</div>
 
-					<!-- Panels (History + Chat vertical) -->
-					<div class="flex-1 min-h-0 flex flex-col gap-2">
+					<!-- Section 3: Tabbed Transfers / Chat -->
+					<div class="flex-1 min-h-[300px] flex flex-col">
+						<div id="mobile-host-nav-container" class="shrink-0 mb-2"></div>
 						<div id="mobile-host-history-container" class="flex-1 min-h-0"></div>
-						<div id="mobile-host-chat-container" class="flex-1 min-h-0"></div>
+						<div id="mobile-host-chat-container" class="hidden flex-1 min-h-0"></div>
 					</div>
 				</div>
 
@@ -300,8 +306,9 @@
 						<div class="mt-2">
 							<div
 								class="flex rounded-full bg-[#121214] p-1 border border-[#2a2a2e] w-full max-w-xs mx-auto">
-								<input type="text" id="room-code-input-mobile-client" placeholder="Enter Code"
-									class="flex-1 bg-transparent border-none rounded-full px-3 py-1 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none" />
+								<input type="text" id="room-code-input-mobile-client" placeholder="4-digit code"
+									maxlength="4" pattern="[0-9]{4}" inputmode="numeric"
+									class="flex-1 bg-transparent border-none rounded-full px-3 py-1 text-sm text-zinc-300 placeholder-zinc-500 focus:outline-none font-mono tracking-widest text-center" />
 								<button onclick="window.joinRoom()"
 									class="bg-white text-[#1a1a1a] px-3 py-1 rounded-full text-sm font-medium hover:bg-zinc-200 transition shrink-0">
 									Join
@@ -318,10 +325,11 @@
 						<div id="mobile-client-drop-container" class="min-h-[80px] flex flex-col"></div>
 					</div>
 
-					<!-- Panels (History + Chat vertical) -->
-					<div class="flex-1 min-h-0 flex flex-col gap-2">
+					<!-- Section 3: Tabbed Transfers / Chat -->
+					<div class="flex-1 min-h-[300px] flex flex-col">
+						<div id="mobile-client-nav-container" class="shrink-0 mb-2"></div>
 						<div id="mobile-client-history-container" class="flex-1 min-h-0"></div>
-						<div id="mobile-client-chat-container" class="flex-1 min-h-0"></div>
+						<div id="mobile-client-chat-container" class="hidden flex-1 min-h-0"></div>
 					</div>
 				</div>
 			</main>
