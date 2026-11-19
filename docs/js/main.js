@@ -23,7 +23,7 @@ import {
 } from "./fallback.js";
 
 // ---- Component builders ----
-import { ModeSelector, DropZone, HistoryPanel } from "./components.js";
+import { ModeSelector, DropZone, HistoryPanel, ChatPanel } from "./components.js";
 
 // ============================================================
 // 1. DOM references
@@ -69,6 +69,7 @@ function injectComponents(viewId, mode = currentMode) {
 	const modeContainer = document.getElementById(`${viewId}-mode-container`);
 	const dropContainer = document.getElementById(`${viewId}-drop-container`);
 	const historyContainer = document.getElementById(`${viewId}-history-container`);
+	const chatContainer = document.getElementById(`${viewId}-chat-container`);
 
 	if (modeContainer) {
 		modeContainer.innerHTML = ModeSelector({ selected: mode });
@@ -88,6 +89,10 @@ function injectComponents(viewId, mode = currentMode) {
 		const listId = `history-list-${viewId}`;
 		const emptyId = `history-empty-${viewId}`;
 		historyContainer.innerHTML = HistoryPanel({ listId, emptyId });
+	}
+	if (chatContainer) {
+		chatContainer.innerHTML = ChatPanel({});
+		attachChatListeners();
 	}
 }
 
@@ -296,6 +301,8 @@ function setModeFromSignal(mode) {
 		radio.checked = radio.value === mode;
 	});
 	applyMode();
+	// Refresh chat UI when mode changes
+	updateChatUI();
 }
 
 function applyMode() {
@@ -540,6 +547,12 @@ async function handleSignal(signal) {
 		handleFallbackSignal(signal);
 		return;
 	}
+	// Handle chat messages
+	if (signal.type === "chat-message" && signal.message) {
+		console.log("[handleSignal] received chat message:", signal.message);
+		handleChatMessage(signal.message, signal.timestamp);
+		return;
+	}
 
 	if (getSelectedMode() === "fallback") {
 		console.log("[handleSignal] ignoring WebRTC signal because mode is fallback");
@@ -739,11 +752,99 @@ document.addEventListener("drop", (e) => {
 });
 
 // ============================================================
-// 14. Clear history & load
+// 14. Chat functionality
+// ============================================================
+function updateChatUI() {
+	// Refresh chat container when mode changes
+	const chatContainers = document.querySelectorAll('[id*="chat-container"]');
+	chatContainers.forEach((container) => {
+		container.innerHTML = ChatPanel({});
+		attachChatListeners();
+	});
+}
+
+function attachChatListeners() {
+	// Chat send button click handler
+	document.querySelectorAll('[id*="chat-send"]').forEach((sendBtn) => {
+		sendBtn.addEventListener('click', () => {
+			const chatContainer = sendBtn.closest('[id*="chat-container"]');
+			const chatInput = chatContainer.querySelector('[id*="chat-input"]');
+			const chatMessages = chatContainer.querySelector('[id*="chat-messages"]');
+			
+			if (!chatInput || !chatMessages) return;
+			
+			const message = chatInput.value.trim();
+			if (message) {
+				sendChatMessage(message);
+				chatInput.value = '';
+			}
+		});
+	});
+
+	// Chat input enter key handler
+	document.querySelectorAll('[id*="chat-input"]').forEach((input) => {
+		input.addEventListener('keypress', (e) => {
+			if (e.key === 'Enter' && !e.shiftKey) {
+				e.preventDefault();
+				const sendBtn = input.closest('[id*="chat-container"]').querySelector('[id*="chat-send"]');
+				if (sendBtn) {
+					sendBtn.click();
+				}
+			}
+		});
+	});
+}
+
+function sendChatMessage(message) {
+	if (!message || !message.trim()) return;
+	
+	// Add message to chat UI
+	const chatContainer = document.querySelector('[id*="chat-container"]');
+	const chatMessages = chatContainer?.querySelector('[id*="chat-messages"]');
+	
+	if (chatMessages) {
+		const messageDiv = document.createElement('div');
+		messageDiv.className = 'chat-message sent';
+		messageDiv.innerHTML = `
+			<div class="mb-1">You</div>
+			<p class="text-sm">${message}</p>
+			<div class="chat-message-time">${new Date().toLocaleTimeString()}</div>
+		`;
+		chatMessages.appendChild(messageDiv);
+		chatMessages.scrollTop = chatMessages.scrollHeight;
+	}
+
+	// Send via signaling
+	socket.emit('signal', {
+		room: currentRoom,
+		signal: { type: 'chat-message', message, timestamp: new Date().toISOString() }
+	});
+}
+
+function handleChatMessage(message, timestamp) {
+	const chatContainer = document.querySelector('[id*="chat-container"]');
+	const chatMessages = chatContainer?.querySelector('[id*="chat-messages"]');
+	
+	if (chatMessages) {
+		const messageDiv = document.createElement('div');
+		messageDiv.className = 'chat-message received';
+		messageDiv.innerHTML = `
+			<div class="mb-1">Peer</div>
+			<p class="text-sm">${message}</p>
+			<div class="chat-message-time">${new Date(timestamp).toLocaleTimeString()}</div>
+		`;
+		chatMessages.appendChild(messageDiv);
+		chatMessages.scrollTop = chatMessages.scrollHeight;
+	}
+}
+
+// ============================================================
+// 15. Clear history & load
 // ============================================================
 window.clearHistory = clearHistory;
 
 window.addEventListener("load", () => {
 	attachModeListeners();
 	attachFilterListeners();
+	attachChatListeners();
 });

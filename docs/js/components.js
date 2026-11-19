@@ -81,4 +81,24 @@ export function HistoryPanel({
       </div>
     </div>
   `;
+export function ChatPanel({
+	chatId = "chat-messages",
+	inputId = "chat-input",
+	sendId = "chat-send",
+} = {}) {
+	return `
+		<div class="flex flex-col gap-1 h-full overflow-hidden">
+			<div class="flex items-center justify-between px-1 shrink-0">
+				<h2 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Chat</h2>
+			</div>
+			<div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 flex-1 flex flex-col min-h-0 overflow-hidden">
+				<div id="${chatId}" class="flex-1 overflow-y-auto space-y-1 pr-1"></div>
+				<div class="flex gap-2 mt-2">
+					<input id="${inputId}" type="text" class="flex-1 bg-[#121214] border border-[#2a2a2e] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#5a5a5e]" placeholder="Type a message..." />
+					<button id="${sendId}" class="bg-[#6366f1] hover:bg-[#4f46e5] text-white rounded-lg px-4 py-2 text-sm transition">Send</button>
+				</div>
+			</div>
+		</div>
+	`;
+}
 }
