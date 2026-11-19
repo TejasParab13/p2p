@@ -1,6 +1,6 @@
 import { RTC_CONFIG } from "./config.js";
 import { setConnectionStatus, showError } from "./utils.js";
-import { transferHistory, renderHistory, addPendingFile } from "./history.js";
+import { transferHistory, renderHistory } from "./history.js";
 import { fallbackState } from "./fallback.js";
 
 export const webrtcState = {
@@ -102,7 +102,6 @@ export async function sendFileWebRTC(file, transferId) {
 			}),
 		);
 		if (file.size > 0) {
-			// Production Performance: Increased from 16KB to 64KB
 			const chunkSize = 65536;
 			let offset = 0;
 			while (offset < file.size) {
@@ -124,7 +123,7 @@ export async function sendFileWebRTC(file, transferId) {
 			renderHistory();
 		}
 	} catch (err) {
-		console.error("WebRTC send error:", err);
+		console.error("[WebRTC] send error:", err);
 		const histItem2 = transferHistory.find((h) => h.id === transferId);
 		if (histItem2) {
 			histItem2.status = "error";
@@ -137,20 +136,38 @@ export async function sendFileWebRTC(file, transferId) {
 function completeReceiveWebRTC(id) {
 	const receiveData = webrtcState.activeReceives.get(id);
 	if (!receiveData) return;
-	const histItem = transferHistory.find((h) => h.id === id);
-	if (histItem) {
-		try {
-			const blob = new Blob(receiveData.buffer, {
-				type: histItem.type || "application/octet-stream",
-			});
-			// Show file preview instead of auto-completing
-			addPendingFile(id, histItem.name, histItem.size, histItem.type, blob);
-		} catch (e) {
-			histItem.status = "error";
-			console.error("Blob creation failed:", e);
-			renderHistory();
-		}
+	const meta = receiveData.meta || {};
+
+	let histItem = transferHistory.find((h) => h.id === id);
+	if (!histItem) {
+		histItem = {
+			id: id,
+			name: meta.name || "received-file",
+			size: meta.size || 0,
+			type: meta.fileType || "application/octet-stream",
+			direction: "received",
+			status: "transferring",
+			progress: 100,
+			timestamp: new Date(),
+			objectUrl: null,
+		};
+		transferHistory.push(histItem);
 	}
+
+	try {
+		const blob = new Blob(receiveData.buffer, {
+			type: histItem.type || "application/octet-stream",
+		});
+		histItem.objectUrl = URL.createObjectURL(blob);
+		histItem.status = "completed";
+		histItem.progress = 100;
+		histItem.blob = blob;
+		console.log("[WebRTC] File receive completed:", histItem.name, "size:", histItem.size);
+	} catch (e) {
+		histItem.status = "error";
+		console.error("[WebRTC] Blob creation failed:", e);
+	}
+	renderHistory();
 	webrtcState.activeReceives.delete(id);
 }
 
@@ -168,13 +185,33 @@ async function handleDataMessage(event) {
 				receivedSize: 0,
 				meta: msg,
 			});
-			console.log("[WebRTC] File meta received:", msg.name);
+			let histItem = transferHistory.find((h) => h.id === msg.id);
+			if (!histItem) {
+				histItem = {
+					id: msg.id,
+					name: msg.name,
+					size: msg.size,
+					type: msg.fileType || "application/octet-stream",
+					direction: "received",
+					status: "transferring",
+					progress: 0,
+					timestamp: new Date(),
+					objectUrl: null,
+				};
+				transferHistory.push(histItem);
+			} else {
+				histItem.status = "transferring";
+				histItem.progress = 0;
+			}
+			console.log("[WebRTC] File meta received:", msg.name, "id:", msg.id);
+			renderHistory();
 			if (msg.size === 0) completeReceiveWebRTC(msg.id);
 		} else if (msg.type === "end") {
 			completeReceiveWebRTC(msg.id);
 		}
 		return;
 	}
+
 	let arrayBuffer = null;
 	let byteLength = 0;
 	if (event.data instanceof ArrayBuffer) {
@@ -190,16 +227,19 @@ async function handleDataMessage(event) {
 	} else {
 		return;
 	}
+
 	if (byteLength < 4) return;
 	const idLen = new DataView(arrayBuffer).getUint32(0, true);
 	if (byteLength < 4 + idLen) return;
 	const id = new TextDecoder().decode(arrayBuffer.slice(4, 4 + idLen));
 	const chunkData = arrayBuffer.slice(4 + idLen);
 	if (chunkData.byteLength === 0) return;
+
 	const receiveData = webrtcState.activeReceives.get(id);
 	if (!receiveData) return;
 	receiveData.buffer.push(chunkData);
 	receiveData.receivedSize += chunkData.byteLength;
+
 	const histItem = transferHistory.find((h) => h.id === id);
 	if (histItem && receiveData.meta.size > 0) {
 		throttleRender(histItem, (receiveData.receivedSize / receiveData.meta.size) * 100);
@@ -227,7 +267,7 @@ export function setupDataChannel(channel, processSendQueueCallback) {
 		isSwitchingToRelay = false;
 	};
 	channel.onerror = (err) => {
-		console.error("Data channel error:", err);
+		console.error("[WebRTC] Data channel error:", err);
 		if (!fallbackState.active && !isSwitchingToRelay) {
 			showError("Data channel error. Reload and reconnect.", errorBoxRef);
 		}
@@ -300,13 +340,13 @@ export function createPeerConnection(roomId, onDataChannel, processSendQueueCall
 				},
 			});
 		} catch (e) {
-			console.error("Renegotiation failed:", e);
+			console.error("[WebRTC] Renegotiation failed:", e);
 		}
 	};
 	pc.oniceconnectionstatechange = () => {
 		if (pc.iceConnectionState === "failed" && pc.restartIce) pc.restartIce();
 	};
-	pc.onicecandidateerror = (err) => console.warn("ICE candidate error:", err);
+	pc.onicecandidateerror = (err) => console.warn("[WebRTC] ICE candidate error:", err);
 	return pc;
 }
 

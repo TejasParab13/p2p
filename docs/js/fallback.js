@@ -1,4 +1,4 @@
-import { transferHistory, renderHistory, addPendingFile } from "./history.js";
+import { transferHistory, renderHistory } from "./history.js";
 import { setConnectionStatus, showError } from "./utils.js";
 
 export const fallbackState = {
@@ -44,9 +44,7 @@ export function activateFallback(hasPeer = false) {
 	if (fallbackState.active) return;
 	fallbackState.active = true;
 	fallbackState.peerConnected = hasPeer;
-	console.log("Fallback activated, hasPeer:", hasPeer);
-	// Status update is handled by updateConnectionStatus() in main.js
-	// Don't set status here to avoid conflicts
+	console.log("[Fallback] activated, hasPeer:", hasPeer);
 	if (processSendQueueCallback) processSendQueueCallback();
 }
 
@@ -61,7 +59,7 @@ export function resetFallback() {
 		URL.revokeObjectURL(fallbackState.objectUrl);
 		fallbackState.objectUrl = null;
 	}
-	console.log("Fallback reset");
+	console.log("[Fallback] reset");
 }
 
 function throttleRender(histItem, progress) {
@@ -94,7 +92,6 @@ export async function sendFileFallback(file, transferId) {
 
 	if (fallbackState.active && !fallbackState.peerConnected) {
 		fallbackState.peerConnected = true;
-		// Already set status on activation, so no need to repeat
 	}
 
 	try {
@@ -167,7 +164,7 @@ export async function sendFileFallback(file, transferId) {
 			renderHistory();
 		}
 	} catch (err) {
-		console.error("Fallback send error:", err);
+		console.error("[Fallback] send error:", err);
 		const histItem2 = transferHistory.find((h) => h.id === transferId);
 		if (histItem2) {
 			histItem2.status = "error";
@@ -181,7 +178,6 @@ export function handleFallbackSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
 	if (fallbackState.active && !fallbackState.peerConnected) {
 		fallbackState.peerConnected = true;
-		// Status already set
 	}
 	if (signal.type === "file-meta") {
 		fallbackState.meta = signal;
@@ -189,7 +185,27 @@ export function handleFallbackSignal(signal) {
 		fallbackState.receivedSize = 0;
 		fallbackState.complete = false;
 		fallbackState.objectUrl = null;
-		console.log("[Fallback] File meta received:", signal.name);
+
+		let histItem = transferHistory.find((h) => h.id === signal.id);
+		if (!histItem) {
+			histItem = {
+				id: signal.id,
+				name: signal.name,
+				size: signal.size,
+				type: signal.fileType || "application/octet-stream",
+				direction: "received",
+				status: "transferring",
+				progress: 0,
+				timestamp: new Date(),
+				objectUrl: null,
+			};
+			transferHistory.push(histItem);
+		} else {
+			histItem.status = "transferring";
+			histItem.progress = 0;
+		}
+		console.log("[Fallback] File meta received:", signal.name, "id:", signal.id);
+		renderHistory();
 		if (signal.size === 0) completeFallbackReceive(signal.id);
 	} else if (signal.type === "file-chunk") {
 		if (!fallbackState.meta || fallbackState.meta.id !== signal.id) return;
@@ -208,7 +224,7 @@ export function handleFallbackSignal(signal) {
 				completeFallbackReceive(signal.id);
 			}
 		} catch (e) {
-			console.error("Fallback chunk decode error:", e);
+			console.error("[Fallback] chunk decode error:", e);
 		}
 	} else if (signal.type === "file-end") {
 		completeFallbackReceive(signal.id);
@@ -218,20 +234,39 @@ export function handleFallbackSignal(signal) {
 function completeFallbackReceive(id) {
 	if (fallbackState.complete || !fallbackState.meta || fallbackState.meta.id !== id) return;
 	fallbackState.complete = true;
-	const histItem = transferHistory.find((h) => h.id === id);
-	if (histItem) {
-		try {
-			const blob = new Blob(fallbackState.receiveBuffer, {
-				type: histItem.type || "application/octet-stream",
-			});
-			// Show file preview instead of auto-completing
-			addPendingFile(id, histItem.name, histItem.size, histItem.type, blob);
-		} catch (e) {
-			histItem.status = "error";
-			console.error("Fallback blob creation failed:", e);
-			renderHistory();
-		}
+
+	const meta = fallbackState.meta;
+	let histItem = transferHistory.find((h) => h.id === id);
+	if (!histItem) {
+		histItem = {
+			id: id,
+			name: meta.name || "received-file",
+			size: meta.size || 0,
+			type: meta.fileType || "application/octet-stream",
+			direction: "received",
+			status: "transferring",
+			progress: 100,
+			timestamp: new Date(),
+			objectUrl: null,
+		};
+		transferHistory.push(histItem);
 	}
+
+	try {
+		const blob = new Blob(fallbackState.receiveBuffer, {
+			type: histItem.type || "application/octet-stream",
+		});
+		fallbackState.objectUrl = URL.createObjectURL(blob);
+		histItem.objectUrl = fallbackState.objectUrl;
+		histItem.status = "completed";
+		histItem.progress = 100;
+		histItem.blob = blob;
+		console.log("[Fallback] File receive completed:", histItem.name, "size:", histItem.size);
+	} catch (e) {
+		histItem.status = "error";
+		console.error("[Fallback] blob creation failed:", e);
+	}
+	renderHistory();
 	fallbackState.receiveBuffer = [];
 	fallbackState.meta = null;
 }

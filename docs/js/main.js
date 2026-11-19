@@ -46,7 +46,8 @@ let connectErrorCount = 0;
 const params = new URLSearchParams(window.location.search);
 const urlRoom = (params.get("room") || "").trim();
 const isInitiator = Boolean(urlRoom); // true → client (phone), false → host (PC)
-// Generate a 4-digit numeric room code for ease of use
+
+// Generate a 4-digit numeric room code for ease of use (e.g. 1000 - 9999)
 const currentRoom = urlRoom || Math.floor(1000 + Math.random() * 9000).toString();
 let currentMode = "webrtc";
 let currentSectionTab = "transfers";
@@ -68,6 +69,14 @@ function isMobileDevice() {
 	return window.innerWidth < 768;
 }
 
+function getCurrentViewId() {
+	if (!isInitiator) {
+		return isMobileDevice() ? "mobile-host" : "pc-host";
+	} else {
+		return isMobileDevice() ? "mobile-client" : "pc-client";
+	}
+}
+
 function injectComponents(viewId, mode = currentMode) {
 	const navContainer = document.getElementById(`${viewId}-nav-container`);
 	const modeContainer = document.getElementById(`${viewId}-mode-container`);
@@ -77,7 +86,6 @@ function injectComponents(viewId, mode = currentMode) {
 
 	if (navContainer) {
 		navContainer.innerHTML = SectionTabs({ viewId, active: currentSectionTab });
-		attachSectionTabListeners(viewId);
 	}
 	if (modeContainer) {
 		modeContainer.innerHTML = ModeSelector({ selected: mode });
@@ -104,7 +112,7 @@ function injectComponents(viewId, mode = currentMode) {
 		}
 	}
 	if (chatContainer) {
-		chatContainer.innerHTML = ChatPanel({});
+		chatContainer.innerHTML = ChatPanel({ viewId });
 		attachChatListeners();
 		renderChatHistory();
 		if (currentSectionTab === "transfers") {
@@ -115,44 +123,49 @@ function injectComponents(viewId, mode = currentMode) {
 	}
 }
 
-function attachSectionTabListeners(viewId) {
-	document.querySelectorAll(`input[name="section-tab-${viewId}"]`).forEach((radio) => {
-		radio.removeEventListener("change", handleSectionTabChange);
-		radio.addEventListener("change", handleSectionTabChange);
-	});
-}
-
-function handleSectionTabChange(e) {
-	const viewId = e.target.closest("label")?.dataset.view;
-	const tab = e.target.value;
-	if (tab && viewId) {
-		switchSectionTab(tab, viewId);
-	}
-}
-
-function switchSectionTab(tab, viewId) {
+// Window-level tab switcher called by buttons or scripts
+window.switchTab = function (tab, viewId) {
 	currentSectionTab = tab;
-	// Synchronize radio state across all views
-	document.querySelectorAll(`input[value="${tab}"]`).forEach((radio) => {
-		if (radio.name.startsWith("section-tab-")) radio.checked = true;
+	const activeView = viewId || getCurrentViewId();
+
+	// Update all views to maintain consistent tab state
+	["pc-host", "pc-client", "mobile-host", "mobile-client"].forEach((vId) => {
+		const historyContainer = document.getElementById(`${vId}-history-container`);
+		const chatContainer = document.getElementById(`${vId}-chat-container`);
+		const transfersBtn = document.getElementById(`tab-btn-transfers-${vId}`);
+		const chatBtn = document.getElementById(`tab-btn-chat-${vId}`);
+		const badge = document.getElementById(`chat-badge-${vId}`);
+
+		if (tab === "transfers") {
+			if (historyContainer) historyContainer.classList.remove("hidden");
+			if (chatContainer) chatContainer.classList.add("hidden");
+			if (transfersBtn) {
+				transfersBtn.className =
+					"flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-200 bg-white text-[#1a1a1a] shadow-md";
+			}
+			if (chatBtn) {
+				chatBtn.className =
+					"flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-200 relative text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40";
+			}
+		} else if (tab === "chat") {
+			if (historyContainer) historyContainer.classList.add("hidden");
+			if (chatContainer) chatContainer.classList.remove("hidden");
+			if (badge) badge.classList.add("hidden");
+			if (transfersBtn) {
+				transfersBtn.className =
+					"flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-200 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40";
+			}
+			if (chatBtn) {
+				chatBtn.className =
+					"flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-200 relative bg-white text-[#1a1a1a] shadow-md";
+			}
+
+			// Scroll chat to latest messages
+			const chatBox = chatContainer?.querySelector('[id*="chat-messages"]');
+			if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+		}
 	});
-
-	const historyContainer = document.getElementById(`${viewId}-history-container`);
-	const chatContainer = document.getElementById(`${viewId}-chat-container`);
-	const badge = document.getElementById(`chat-badge-${viewId}`);
-
-	if (tab === "transfers") {
-		if (historyContainer) historyContainer.classList.remove("hidden");
-		if (chatContainer) chatContainer.classList.add("hidden");
-	} else if (tab === "chat") {
-		if (historyContainer) historyContainer.classList.add("hidden");
-		if (chatContainer) chatContainer.classList.remove("hidden");
-		if (badge) badge.classList.add("hidden");
-		// Auto scroll chat to newest messages
-		const chatBox = chatContainer?.querySelector('[id*="chat-messages"]');
-		if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
-	}
-}
+};
 
 function updateView() {
 	// Hide all
@@ -212,13 +225,7 @@ function updateView() {
 	attachRoomInputListeners();
 
 	// Re-init history
-	const viewPrefix = isInitiator
-		? isMobileDevice()
-			? "mobile-client"
-			: "pc-client"
-		: isMobileDevice()
-			? "mobile-host"
-			: "pc-host";
+	const viewPrefix = getCurrentViewId();
 	const listId = `history-list-${viewPrefix}`;
 	const emptyId = `history-empty-${viewPrefix}`;
 	const listEl = document.getElementById(listId);
@@ -501,15 +508,13 @@ initFallback(socket, currentRoom, errorBox, null, null, processSendQueue);
 // ============================================================
 async function processSendQueue() {
 	if (webrtcState.isSending || webrtcState.sendQueue.length === 0) {
-		console.log("[processSendQueue] idle or no items");
 		return;
 	}
-	console.log("[processSendQueue] processing, queue length:", webrtcState.sendQueue.length);
 
 	if (!fallbackState.active) {
 		if (!webrtcState.dataChannel || webrtcState.dataChannel.readyState !== "open") {
 			console.log(
-				"[processSendQueue] no open data channel, readyState:",
+				"[processSendQueue] waiting for open data channel, readyState:",
 				webrtcState.dataChannel?.readyState || "null",
 			);
 			if (!retryStartedAt) retryStartedAt = Date.now();
@@ -520,7 +525,7 @@ async function processSendQueue() {
 					histItem.status = "error";
 					renderHistory();
 				}
-				showError("Connection timeout. Please try again.", errorBox);
+				showError("Connection timeout. Please try again or switch to Relay mode.", errorBox);
 				retryStartedAt = null;
 				processSendQueue();
 				return;
@@ -529,16 +534,18 @@ async function processSendQueue() {
 			retryTimeout = setTimeout(() => {
 				retryTimeout = null;
 				processSendQueue();
-			}, 2000);
+			}, 1500);
 			return;
 		}
 	}
+
 	retryStartedAt = null;
 	webrtcState.isSending = true;
 	const item = webrtcState.sendQueue.shift();
 	const file = item.file;
 	const transferId = item.id;
 	console.log("[processSendQueue] sending file:", file.name, "id:", transferId);
+
 	try {
 		if (
 			webrtcState.dataChannel &&
@@ -548,11 +555,11 @@ async function processSendQueue() {
 			console.log("[processSendQueue] using WebRTC to send");
 			await sendFileWebRTC(file, transferId);
 		} else if (fallbackState.active) {
-			console.log("[processSendQueue] using Fallback to send");
+			console.log("[processSendQueue] using Fallback Relay to send");
 			await sendFileFallback(file, transferId);
 		} else {
 			console.error("[processSendQueue] no active connection!");
-			showError("No active connection", errorBox);
+			showError("No active connection. Switch to Relay mode.", errorBox);
 			const histItem = transferHistory.find((h) => h.id === transferId);
 			if (histItem) {
 				histItem.status = "error";
@@ -577,7 +584,6 @@ async function processSendQueue() {
 // ============================================================
 async function handleSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
-	console.log("[handleSignal] received:", signal.type || (signal.sdp ? "sdp" : "candidate"));
 
 	// Any signal from the other peer confirms presence
 	hasPeer = true;
@@ -615,7 +621,6 @@ async function handleSignal(signal) {
 	}
 
 	if (getSelectedMode() === "fallback") {
-		console.log("[handleSignal] ignoring WebRTC signal because mode is fallback");
 		return;
 	}
 
@@ -679,7 +684,7 @@ async function handleSignal(signal) {
 }
 
 // ============================================================
-// 10. QR Code generator
+// 10. QR Code generator with embedded 4-digit code
 // ============================================================
 function makeQr(roomId, qrEl) {
 	if (!qrEl) {
@@ -692,17 +697,32 @@ function makeQr(roomId, qrEl) {
 	u.search = `?room=${roomId}`;
 	u.hash = "";
 	if (roomUrlText) roomUrlText.textContent = u.toString();
+
+	const isMobile = qrEl.id === "qrcode-mobile";
+	const size = isMobile ? 120 : 140;
+
 	if (typeof QRCode !== "undefined") {
 		new QRCode(qrEl, {
 			text: u.toString(),
-			width: 140,
-			height: 140,
+			width: size,
+			height: size,
 			colorDark: "#09090b",
 			colorLight: "#ffffff",
+			correctLevel: QRCode.CorrectLevel.H,
 		});
 	} else {
 		qrEl.textContent = u.toString();
 	}
+
+	// Embedded 4-digit code badge in the dead center of the QR code
+	const badge = document.createElement("div");
+	badge.className = "absolute inset-0 flex items-center justify-center pointer-events-none";
+	badge.innerHTML = `
+		<span class="bg-[#09090b] text-white font-mono font-bold text-xs px-2 py-0.5 rounded shadow-lg border border-zinc-600 tracking-widest">
+			${roomId}
+		</span>
+	`;
+	qrEl.appendChild(badge);
 }
 
 // ============================================================
@@ -749,8 +769,8 @@ if (document.readyState === "loading") {
 
 /** Shared helper: validates connection then queues files for sending. */
 function enqueueFiles(files) {
-	// Production Safety: Prevent Out-Of-Memory crashes (1GB Limit)
-	const MAX_FILE_SIZE = 1024 * 1024 * 1024; // 1 GB
+	// 1GB safety limit
+	const MAX_FILE_SIZE = 1024 * 1024 * 1024;
 	for (const file of files) {
 		if (file.size > MAX_FILE_SIZE) {
 			showError(`File "${file.name}" exceeds the 1GB limit.`, errorBox);
@@ -762,11 +782,12 @@ function enqueueFiles(files) {
 	const hasFallback = fallbackState.active;
 	if (!hasWebRTC && !hasFallback) {
 		showError(
-			"No active connection. Please ensure you are connected or switch to Relay mode.",
+			"No active connection. Please wait for peer to connect or switch to Relay mode.",
 			errorBox,
 		);
 		return false;
 	}
+
 	for (const file of files) {
 		const id = crypto.randomUUID();
 		webrtcState.sendQueue.push({ file, id });
@@ -828,16 +849,30 @@ document.addEventListener("drop", (e) => {
 // 14. Chat functionality
 // ============================================================
 function updateChatUI() {
-	const chatContainers = document.querySelectorAll('[id*="chat-container"]');
-	chatContainers.forEach((container) => {
-		container.innerHTML = ChatPanel({});
+	const currentView = getCurrentViewId();
+	const chatContainer = document.getElementById(`${currentView}-chat-container`);
+	if (chatContainer) {
+		chatContainer.innerHTML = ChatPanel({ viewId: currentView });
 		attachChatListeners();
 		renderChatHistory();
-	});
+	}
 }
 
 function renderChatHistory() {
 	document.querySelectorAll('[id*="chat-messages"]').forEach((chatMessages) => {
+		if (chatHistory.length === 0) {
+			chatMessages.innerHTML = `
+				<div class="h-full flex flex-col items-center justify-center text-zinc-600 chat-empty-placeholder">
+					<svg class="w-8 h-8 mb-1 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+					</svg>
+					<p class="text-xs font-medium">No messages yet</p>
+					<p class="text-[9px] mt-0.5">Send a message to start chatting</p>
+				</div>
+			`;
+			return;
+		}
+
 		chatMessages.innerHTML = "";
 		chatHistory.forEach((item) => {
 			const messageDiv = document.createElement("div");

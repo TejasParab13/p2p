@@ -3,21 +3,37 @@
 // ============================================================
 
 export function SectionTabs({ viewId, active = "transfers" } = {}) {
-	const transfersChecked = active === "transfers" ? "checked" : "";
-	const chatChecked = active === "chat" ? "checked" : "";
+	const isTransfers = active === "transfers";
+	const isChat = active === "chat";
 	return `
-		<div class="flex rounded-full bg-[#121214] p-0.5 border border-[#2a2a2e] w-full">
-			<label class="flex-1 text-center cursor-pointer transition-colors" data-view="${viewId}">
-				<input type="radio" name="section-tab-${viewId}" value="transfers" class="hidden peer" ${transfersChecked} />
-				<span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-md text-zinc-400 hover:text-zinc-200 block py-1.5 px-3 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-200">Transfers</span>
-			</label>
-			<label class="flex-1 text-center cursor-pointer transition-colors relative" data-view="${viewId}">
-				<input type="radio" name="section-tab-${viewId}" value="chat" class="hidden peer" ${chatChecked} />
-				<span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-md text-zinc-400 hover:text-zinc-200 block py-1.5 px-3 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-1.5">
-					Chat
-					<span id="chat-badge-${viewId}" class="hidden w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-				</span>
-			</label>
+		<div class="flex rounded-full bg-[#121214] p-1 border border-[#2a2a2e] w-full shadow-inner">
+			<button type="button"
+				id="tab-btn-transfers-${viewId}"
+				onclick="window.switchTab('transfers', '${viewId}')"
+				class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
+					isTransfers
+						? "bg-white text-[#1a1a1a] shadow-md"
+						: "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40"
+				}">
+				<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+				</svg>
+				<span>Transfers</span>
+			</button>
+			<button type="button"
+				id="tab-btn-chat-${viewId}"
+				onclick="window.switchTab('chat', '${viewId}')"
+				class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-200 relative ${
+					isChat
+						? "bg-white text-[#1a1a1a] shadow-md"
+						: "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40"
+				}">
+				<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+				</svg>
+				<span>Chat</span>
+				<span id="chat-badge-${viewId}" class="hidden w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+			</button>
 		</div>
 	`;
 }
@@ -28,11 +44,11 @@ export function ModeSelector({ selected = "webrtc" } = {}) {
 	return `
 		<div class="flex rounded-full bg-[#121214] p-0.5 border border-[#2a2a2e] w-full">
 			<label class="flex-1 text-center cursor-pointer transition-colors" data-mode="webrtc">
-				<input type="radio" name="mode" value="webrtc" class="hidden peer" ${webrtcChecked} />
+				<input type="radio" name="mode" value="webrtc" class="sr-only peer" ${webrtcChecked} />
 				<span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-md text-zinc-400 hover:text-zinc-300 block py-1.5 px-2 rounded-full text-sm font-medium transition-all duration-200">Direct</span>
 			</label>
 			<label class="flex-1 text-center cursor-pointer transition-colors" data-mode="fallback">
-				<input type="radio" name="mode" value="fallback" class="hidden peer" ${fallbackChecked} />
+				<input type="radio" name="mode" value="fallback" class="sr-only peer" ${fallbackChecked} />
 				<span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-md text-zinc-400 hover:text-zinc-300 block py-1.5 px-2 rounded-full text-sm font-medium transition-all duration-200">Relay</span>
 			</label>
 		</div>
@@ -76,15 +92,15 @@ export function HistoryPanel({
 				<div class="flex items-center justify-between mb-2 shrink-0">
 					<div class="flex rounded-full bg-[#121214] p-0.5 border border-[#2a2a2e]">
 						<label class="cursor-pointer flex-1">
-							<input type="radio" name="filter" value="all" class="hidden peer" checked />
+							<input type="radio" name="filter" value="all" class="sr-only peer" checked />
 							<span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 hover:text-zinc-300 block text-center text-[10px] px-3 py-0.5 rounded-full transition-all">All</span>
 						</label>
 						<label class="cursor-pointer flex-1">
-							<input type="radio" name="filter" value="sent" class="hidden peer" />
+							<input type="radio" name="filter" value="sent" class="sr-only peer" />
 							<span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 hover:text-zinc-300 block text-center text-[10px] px-3 py-0.5 rounded-full transition-all">Sent</span>
 						</label>
 						<label class="cursor-pointer flex-1">
-							<input type="radio" name="filter" value="received" class="hidden peer" />
+							<input type="radio" name="filter" value="received" class="sr-only peer" />
 							<span class="peer-checked:bg-white peer-checked:text-[#1a1a1a] peer-checked:shadow-sm text-zinc-400 hover:text-zinc-300 block text-center text-[10px] px-3 py-0.5 rounded-full transition-all">Received</span>
 						</label>
 					</div>
@@ -104,20 +120,42 @@ export function HistoryPanel({
 }
 
 export function ChatPanel({
-	chatId = "chat-messages",
-	inputId = "chat-input",
-	sendId = "chat-send",
+	viewId = "default",
+	chatId = `chat-messages-${viewId}`,
+	inputId = `chat-input-${viewId}`,
+	sendId = `chat-send-${viewId}`,
 } = {}) {
 	return `
 		<div class="flex flex-col gap-1 h-full overflow-hidden">
 			<div class="flex items-center justify-between px-1 shrink-0">
-				<h2 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Chat</h2>
+				<h2 class="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+					<span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+					<span>Peer Chat</span>
+				</h2>
+				<span class="text-[10px] text-zinc-500">Instant & Direct</span>
 			</div>
 			<div class="bg-[#18181b] border border-[#2a2a2e] rounded-xl p-3 flex-1 flex flex-col min-h-0 overflow-hidden">
-				<div id="${chatId}" class="flex-1 overflow-y-auto space-y-2 pr-1 mb-2"></div>
-				<div class="flex gap-2 shrink-0">
-					<input id="${inputId}" type="text" class="flex-1 bg-[#121214] border border-[#2a2a2e] rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#5a5a5e]" placeholder="Type a message..." />
-					<button id="${sendId}" class="bg-[#6366f1] hover:bg-[#4f46e5] text-white rounded-lg px-4 py-2 text-sm font-medium transition">Send</button>
+				<div id="${chatId}" class="flex-1 overflow-y-auto space-y-2 pr-1 mb-2">
+					<div class="h-full flex flex-col items-center justify-center text-zinc-600 chat-empty-placeholder">
+						<svg class="w-8 h-8 mb-1 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+						</svg>
+						<p class="text-xs font-medium">No messages yet</p>
+						<p class="text-[9px] mt-0.5">Send a message to start chatting</p>
+					</div>
+				</div>
+				<div class="flex gap-2 shrink-0 pt-2 border-t border-[#2a2a2e]/60">
+					<input id="${inputId}" type="text"
+						class="flex-1 bg-[#121214] border border-[#2a2a2e] rounded-xl px-3.5 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
+						placeholder="Type a message... (Press Enter)" />
+					<button id="${sendId}"
+						type="button"
+						class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2 text-sm font-medium transition shadow flex items-center justify-center gap-1.5 shrink-0">
+						<span>Send</span>
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+						</svg>
+					</button>
 				</div>
 			</div>
 		</div>
