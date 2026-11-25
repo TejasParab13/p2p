@@ -4,9 +4,7 @@
 	"description": "Signaling server for P2P Share – handles WebRTC signaling and relay fallback",
 	"main": "server.js",
 	"scripts": {
-		"start": "node server.js",
-		"test": "jest --verbose --forceExit --detectOpenHandles",
-		"test:coverage": "jest --coverage --forceExit --detectOpenHandles"
+		"start": "node server.js"
 	},
 	"dependencies": {
 		"cors": "^2.8.6",
@@ -16,10 +14,5 @@
 		"helmet": "^8.3.0",
 		"socket.io": "^4.7.5",
 		"winston": "^3.19.0"
-	},
-	"devDependencies": {
-		"jest": "^29.7.0",
-		"socket.io-client": "^4.7.5",
-		"supertest": "^6.3.4"
 	}
 }

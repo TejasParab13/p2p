@@ -21,34 +21,28 @@ import {
 	resetFallback,
 	setFallbackStatusElements,
 } from "./fallback.js";
-
-// ---- Component builders ----
 import { ModeSelector, DropZone, HistoryPanel, ChatPanel, SectionTabs } from "./components.js";
 
-// ============================================================
-// 1. DOM references
-// ============================================================
 const pcHostView = document.getElementById("pc-host-view");
 const pcClientView = document.getElementById("pc-client-view");
 const mobileHostView = document.getElementById("mobile-host-view");
 const mobileClientView = document.getElementById("mobile-client-view");
-
 const errorBox = document.getElementById("error-box");
 const roomUrlText = document.getElementById("room-url");
 
-// ============================================================
-// 2. Socket & room logic
-// ============================================================
 const socket = io(SIGNALING_URL, { transports: ["websocket", "polling"] });
 
 let initiatorStarted = false;
 let connectErrorCount = 0;
+
 const params = new URLSearchParams(window.location.search);
 const urlRoom = (params.get("room") || "").trim();
 const isInitiator = Boolean(urlRoom); // true → client (phone), false → host (PC)
 
-// Generate a 4-digit numeric room code for ease of use (e.g. 1000 - 9999)
-const currentRoom = urlRoom || Math.floor(1000 + Math.random() * 9000).toString();
+// Generate a 4-digit code (0000–9999) with leading zeros
+const currentRoom =
+	urlRoom || String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+
 let currentMode = "webrtc";
 let currentSectionTab = "transfers";
 let chatHistory = [];
@@ -56,15 +50,10 @@ let retryTimeout = null;
 let retryStartedAt = null;
 const MAX_RETRY_MS = 30000;
 let modeChangeInProgress = false;
-let hasPeer = false; // true when we receive any signal from the other peer
-
-// ---- Store current status elements for refresh ----
+let hasPeer = false;
 let currentConnStatusEl = null;
 let currentStatusTextEl = null;
 
-// ============================================================
-// 3. Device detection & view updater
-// ============================================================
 function isMobileDevice() {
 	return window.innerWidth < 768;
 }
@@ -123,12 +112,9 @@ function injectComponents(viewId, mode = currentMode) {
 	}
 }
 
-// Window-level tab switcher called by buttons or scripts
 window.switchTab = function (tab, viewId) {
 	currentSectionTab = tab;
 	const activeView = viewId || getCurrentViewId();
-
-	// Update all views to maintain consistent tab state
 	["pc-host", "pc-client", "mobile-host", "mobile-client"].forEach((vId) => {
 		const historyContainer = document.getElementById(`${vId}-history-container`);
 		const chatContainer = document.getElementById(`${vId}-chat-container`);
@@ -159,8 +145,6 @@ window.switchTab = function (tab, viewId) {
 				chatBtn.className =
 					"flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-200 relative bg-white text-[#1a1a1a] shadow-md";
 			}
-
-			// Scroll chat to latest messages
 			const chatBox = chatContainer?.querySelector('[id*="chat-messages"]');
 			if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
 		}
@@ -168,7 +152,6 @@ window.switchTab = function (tab, viewId) {
 };
 
 function updateView() {
-	// Hide all
 	[pcHostView, pcClientView, mobileHostView, mobileClientView].forEach((el) =>
 		el?.classList.add("hidden"),
 	);
@@ -176,7 +159,6 @@ function updateView() {
 	let connStatusEl, statusTextEl;
 
 	if (!isInitiator) {
-		// HOST (PC)
 		if (isMobileDevice()) {
 			mobileHostView.classList.remove("hidden");
 			injectComponents("mobile-host");
@@ -197,7 +179,6 @@ function updateView() {
 			statusTextEl = null;
 		}
 	} else {
-		// CLIENT (phone)
 		if (isMobileDevice()) {
 			mobileClientView.classList.remove("hidden");
 			injectComponents("mobile-client");
@@ -211,25 +192,21 @@ function updateView() {
 		}
 	}
 
-	// Store status elements for later refresh
 	currentConnStatusEl = connStatusEl;
 	currentStatusTextEl = statusTextEl;
-
-	// Update status element references for WebRTC and Fallback modules
 	setWebRTCStatusElements(connStatusEl, statusTextEl);
 	setFallbackStatusElements(connStatusEl, statusTextEl);
 
-	// Attach listeners
 	attachModeListeners();
 	attachFilterListeners();
 	attachRoomInputListeners();
 
-	// Re-init history
 	const viewPrefix = getCurrentViewId();
 	const listId = `history-list-${viewPrefix}`;
 	const emptyId = `history-empty-${viewPrefix}`;
 	const listEl = document.getElementById(listId);
 	const emptyEl = document.getElementById(emptyId);
+
 	if (listEl && emptyEl) {
 		initHistory({
 			historyListPC: listEl,
@@ -240,19 +217,15 @@ function updateView() {
 		renderHistory();
 	}
 
-	// ---- Refresh status to reflect current connection state ----
 	refreshStatus();
 }
 
-// ---- Helper to refresh status using stored elements ----
 function refreshStatus() {
 	if (!currentConnStatusEl) return;
 	updateConnectionStatus(currentConnStatusEl, currentStatusTextEl);
 }
 
-// ---- Helper to set status based on actual connection state ----
 function updateConnectionStatus(connStatusEl, statusTextEl) {
-	// Check real connectivity
 	const isWebRTCConnected =
 		webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open";
 	const isRelayConnected = fallbackState.active && hasPeer;
@@ -272,13 +245,11 @@ function updateConnectionStatus(connStatusEl, statusTextEl) {
 	}
 }
 
-// ----- Direct file input handler (attached after injection) -----
 function handleFileSelectDirect(event) {
 	console.log("[handleFileSelectDirect] event triggered on:", event.target.id);
 	handleFileSelect(event);
 }
 
-// ----- Listeners (delegated) -----
 function attachModeListeners() {
 	document.querySelectorAll('input[name="mode"]').forEach((radio) => {
 		radio.removeEventListener("change", handleModeChange);
@@ -316,7 +287,15 @@ function attachRoomInputListeners() {
 	document.querySelectorAll('input[id^="room-code-input"]').forEach((input) => {
 		input.removeEventListener("keypress", handleRoomInputEnter);
 		input.addEventListener("keypress", handleRoomInputEnter);
+		// Only allow digits
+		input.removeEventListener("input", handleRoomInputFilter);
+		input.addEventListener("input", handleRoomInputFilter);
 	});
+}
+
+function handleRoomInputFilter(e) {
+	const input = e.target;
+	input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4);
 }
 
 function handleRoomInputEnter(e) {
@@ -332,9 +311,6 @@ window.addEventListener("resize", () => {
 	resizeTimeout = setTimeout(updateView, 300);
 });
 
-// ============================================================
-// 4. Join room (used by all join buttons)
-// ============================================================
 window.joinRoom = function () {
 	const inputs = document.querySelectorAll('input[id^="room-code-input"]');
 	let input = null;
@@ -348,9 +324,9 @@ window.joinRoom = function () {
 		showError("Room code input not found", errorBox);
 		return;
 	}
-	const code = encodeURIComponent(input.value.trim().toLowerCase());
-	if (!code) {
-		showError("Please enter a 4-digit room code", errorBox);
+	const code = input.value.trim();
+	if (!/^[0-9]{4}$/.test(code)) {
+		showError("Please enter exactly 4 digits", errorBox);
 		return;
 	}
 	const url = new URL(window.location.href);
@@ -358,9 +334,6 @@ window.joinRoom = function () {
 	window.location.href = url.toString();
 };
 
-// ============================================================
-// 5. Mode management (core)
-// ============================================================
 function getSelectedMode() {
 	const checked = document.querySelector('input[name="mode"]:checked');
 	return checked ? checked.value : currentMode;
@@ -374,7 +347,7 @@ function setModeFromSignal(mode) {
 	}
 	console.log("[Signal] mode-change received:", mode);
 	currentMode = mode;
-	hasPeer = true; // receiving mode-change means the other peer is present
+	hasPeer = true;
 	document.querySelectorAll('input[name="mode"]').forEach((radio) => {
 		radio.checked = radio.value === mode;
 	});
@@ -388,7 +361,6 @@ function applyMode() {
 		return;
 	}
 	modeChangeInProgress = true;
-
 	const mode = getSelectedMode();
 	console.log("[applyMode] current mode:", mode, "isInitiator:", isInitiator);
 
@@ -412,10 +384,10 @@ function applyMode() {
 	}
 
 	const hadDirect = !!(webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open");
-
 	if (mode === "fallback" && hadDirect) {
 		setSwitchingToRelay(true);
 	}
+
 	resetWebRTC();
 	resetFallback();
 	initiatorStarted = false;
@@ -450,9 +422,6 @@ function applyMode() {
 	refreshStatus();
 }
 
-// ============================================================
-// 6. WebRTC initiator (client)
-// ============================================================
 function startInitiator() {
 	if (initiatorStarted) {
 		console.log("[startInitiator] already started, skipping");
@@ -472,6 +441,7 @@ function startInitiator() {
 
 	const pc = createPeerConnection(currentRoom, null, processSendQueue);
 	webrtcState.peerConnection = pc;
+
 	const dc = pc.createDataChannel("file-transfer");
 	setupDataChannel(dc, processSendQueue);
 	webrtcState.dataChannel = dc;
@@ -497,15 +467,9 @@ function startInitiator() {
 		});
 }
 
-// ============================================================
-// 7. Initialise modules
-// ============================================================
 initWebRTC(socket, currentRoom, isInitiator, errorBox, null, null);
 initFallback(socket, currentRoom, errorBox, null, null, processSendQueue);
 
-// ============================================================
-// 8. File send queue (with logging and safety checks)
-// ============================================================
 async function processSendQueue() {
 	if (webrtcState.isSending || webrtcState.sendQueue.length === 0) {
 		return;
@@ -579,13 +543,8 @@ async function processSendQueue() {
 	}
 }
 
-// ============================================================
-// 9. Signal handler (receives SDP/ICE)
-// ============================================================
 async function handleSignal(signal) {
 	if (!signal || typeof signal !== "object") return;
-
-	// Any signal from the other peer confirms presence
 	hasPeer = true;
 
 	if (signal.type === "request-mode") {
@@ -598,10 +557,12 @@ async function handleSignal(signal) {
 		}
 		return;
 	}
+
 	if (signal.type === "mode-change" && typeof signal.mode === "string") {
 		setModeFromSignal(signal.mode);
 		return;
 	}
+
 	if (signal.type === "fallback-ready") {
 		console.log("[Signal] client fallback is ready");
 		hasPeer = true;
@@ -610,10 +571,12 @@ async function handleSignal(signal) {
 		}
 		return;
 	}
+
 	if (signal.type && signal.type.startsWith("file-")) {
 		handleFallbackSignal(signal);
 		return;
 	}
+
 	if (signal.type === "chat-message" && signal.message) {
 		console.log("[handleSignal] received chat message:", signal.message);
 		handleChatMessage(signal.message, signal.timestamp);
@@ -634,8 +597,8 @@ async function handleSignal(signal) {
 				webrtcState.peerConnection = createPeerConnection(currentRoom, null, processSendQueue);
 			}
 		}
-
 		const pc = webrtcState.peerConnection;
+
 		if (signal.sdp.type === "offer") {
 			if (pc.signalingState !== "stable") {
 				console.warn("[handleSignal] offer ignored, signaling state:", pc.signalingState);
@@ -683,9 +646,6 @@ async function handleSignal(signal) {
 	}
 }
 
-// ============================================================
-// 10. QR Code generator with embedded 4-digit code
-// ============================================================
 function makeQr(roomId, qrEl) {
 	if (!qrEl) {
 		console.warn("QR element not found – skipping QR generation");
@@ -696,6 +656,7 @@ function makeQr(roomId, qrEl) {
 	if (u.pathname && !u.pathname.includes(".") && !u.pathname.endsWith("/")) u.pathname += "/";
 	u.search = `?room=${roomId}`;
 	u.hash = "";
+
 	if (roomUrlText) roomUrlText.textContent = u.toString();
 
 	const isMobile = qrEl.id === "qrcode-mobile";
@@ -714,7 +675,6 @@ function makeQr(roomId, qrEl) {
 		qrEl.textContent = u.toString();
 	}
 
-	// Embedded 4-digit code badge in the dead center of the QR code
 	const badge = document.createElement("div");
 	badge.className = "absolute inset-0 flex items-center justify-center pointer-events-none";
 	badge.innerHTML = `
@@ -725,9 +685,6 @@ function makeQr(roomId, qrEl) {
 	qrEl.appendChild(badge);
 }
 
-// ============================================================
-// 11. Socket events and initial load
-// ============================================================
 function joinAndMaybeStart() {
 	connectErrorCount = 0;
 	socket.emit("join-room", currentRoom);
@@ -746,6 +703,7 @@ function joinAndMaybeStart() {
 socket.on("signal", (signal) => {
 	handleSignal(signal).catch((err) => showError("Signaling error: " + err.message, errorBox));
 });
+
 socket.on("connect", joinAndMaybeStart);
 socket.on("connect_error", (err) => {
 	connectErrorCount += 1;
@@ -754,22 +712,13 @@ socket.on("connect_error", (err) => {
 
 if (!window.RTCPeerConnection) showError("WebRTC not supported. Use Relay mode.", errorBox);
 
-// ============================================================
-// 12. Initial view (will be called after DOM loads)
-// ============================================================
 if (document.readyState === "loading") {
 	document.addEventListener("DOMContentLoaded", updateView);
 } else {
 	updateView();
 }
 
-// ============================================================
-// 13. File selection handlers
-// ============================================================
-
-/** Shared helper: validates connection then queues files for sending. */
 function enqueueFiles(files) {
-	// 1GB safety limit
 	const MAX_FILE_SIZE = 1024 * 1024 * 1024;
 	for (const file of files) {
 		if (file.size > MAX_FILE_SIZE) {
@@ -780,6 +729,7 @@ function enqueueFiles(files) {
 
 	const hasWebRTC = webrtcState.dataChannel && webrtcState.dataChannel.readyState === "open";
 	const hasFallback = fallbackState.active;
+
 	if (!hasWebRTC && !hasFallback) {
 		showError(
 			"No active connection. Please wait for peer to connect or switch to Relay mode.",
@@ -817,7 +767,6 @@ async function handleFileSelect(event) {
 	input.value = "";
 }
 
-// Drag & drop delegation
 document.addEventListener("dragover", (e) => {
 	const dropZone = e.target.closest('[id^="drop-"]');
 	if (dropZone) {
@@ -825,6 +774,7 @@ document.addEventListener("dragover", (e) => {
 		dropZone.classList.add("drop-zone-active");
 	}
 });
+
 document.addEventListener("dragleave", (e) => {
 	const dropZone = e.target.closest('[id^="drop-"]');
 	if (dropZone) {
@@ -832,6 +782,7 @@ document.addEventListener("dragleave", (e) => {
 		dropZone.classList.remove("drop-zone-active");
 	}
 });
+
 document.addEventListener("drop", (e) => {
 	const dropZone = e.target.closest('[id^="drop-"]');
 	if (dropZone) {
@@ -845,9 +796,6 @@ document.addEventListener("drop", (e) => {
 	}
 });
 
-// ============================================================
-// 14. Chat functionality
-// ============================================================
 function updateChatUI() {
 	const currentView = getCurrentViewId();
 	const chatContainer = document.getElementById(`${currentView}-chat-container`);
@@ -867,12 +815,11 @@ function renderChatHistory() {
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
 					</svg>
 					<p class="text-xs font-medium">No messages yet</p>
-					<p class="text-[9px] mt-0.5">Send a message to start chatting</p>
+					<p class="text-[10px] mt-0.5">Send a message to start chatting</p>
 				</div>
 			`;
 			return;
 		}
-
 		chatMessages.innerHTML = "";
 		chatHistory.forEach((item) => {
 			const messageDiv = document.createElement("div");
@@ -907,7 +854,6 @@ function attachChatListeners() {
 		sendBtn.removeEventListener("click", handleChatSendClick);
 		sendBtn.addEventListener("click", handleChatSendClick);
 	});
-
 	document.querySelectorAll('[id*="chat-input"]').forEach((input) => {
 		input.removeEventListener("keypress", handleChatInputKeypress);
 		input.addEventListener("keypress", handleChatInputKeypress);
@@ -939,7 +885,6 @@ function handleChatInputKeypress(e) {
 
 function sendChatMessage(message) {
 	if (!message || !message.trim()) return;
-
 	const item = {
 		sender: "sent",
 		text: message,
@@ -947,7 +892,6 @@ function sendChatMessage(message) {
 	};
 	chatHistory.push(item);
 	renderChatHistory();
-
 	socket.emit("signal", {
 		room: currentRoom,
 		signal: { type: "chat-message", message, timestamp: item.timestamp },
@@ -962,8 +906,6 @@ function handleChatMessage(message, timestamp) {
 	};
 	chatHistory.push(item);
 	renderChatHistory();
-
-	// If currently on transfers tab, display notification badge on chat tab
 	if (currentSectionTab !== "chat") {
 		document.querySelectorAll('[id^="chat-badge-"]').forEach((badge) => {
 			badge.classList.remove("hidden");
@@ -971,9 +913,6 @@ function handleChatMessage(message, timestamp) {
 	}
 }
 
-// ============================================================
-// 15. Clear history & load
-// ============================================================
 window.clearHistory = clearHistory;
 
 window.addEventListener("load", () => {
