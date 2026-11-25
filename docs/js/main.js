@@ -54,6 +54,11 @@ let hasPeer = false;
 let currentConnStatusEl = null;
 let currentStatusTextEl = null;
 
+// ===== Pull-to-refresh config =====
+const PTR_THRESHOLD = 70; // px of pull needed to trigger refresh
+const PTR_MAX = 110; // max visual pull distance
+let pullIndicatorEl = null;
+
 function isMobileDevice() {
 	return window.innerWidth < 768;
 }
@@ -152,6 +157,12 @@ window.switchTab = function (tab, viewId) {
 };
 
 function updateView() {
+	// 1. Save focus state before destroying DOM
+	const activeEl = document.activeElement;
+	const activeId = activeEl?.id;
+	const activeValue = activeEl?.value;
+	const isChatInput = activeId && activeId.includes("chat-input");
+
 	[pcHostView, pcClientView, mobileHostView, mobileClientView].forEach((el) =>
 		el?.classList.add("hidden"),
 	);
@@ -217,7 +228,43 @@ function updateView() {
 		renderHistory();
 	}
 
+	// Auto-fill the visible room-code input when arriving via a scanned QR link
+	prefillRoomInput();
+
 	refreshStatus();
+
+	// Enable pull-to-refresh on the active mobile view
+	ensurePullIndicator();
+	if (isMobileDevice()) {
+		attachPullToRefresh(isInitiator ? mobileClientView : mobileHostView);
+	}
+
+	// 2. Restore focus and value if the chat input was active
+	if (isChatInput && activeId) {
+		setTimeout(() => {
+			const newEl = document.getElementById(activeId);
+			if (newEl) {
+				newEl.value = activeValue || "";
+				newEl.focus();
+				// Move cursor to the end of the text
+				if (newEl.setSelectionRange) {
+					const len = newEl.value.length;
+					newEl.setSelectionRange(len, len);
+				}
+			}
+		}, 50);
+	}
+}
+
+function prefillRoomInput() {
+	if (!isInitiator) return; // host's join input stays empty
+	const inputs = document.querySelectorAll('input[id^="room-code-input"]');
+	for (const el of inputs) {
+		if (el.closest(".hidden") === null) {
+			el.value = currentRoom;
+			break;
+		}
+	}
 }
 
 function refreshStatus() {
@@ -803,6 +850,11 @@ function updateChatUI() {
 		chatContainer.innerHTML = ChatPanel({ viewId: currentView });
 		attachChatListeners();
 		renderChatHistory();
+		if (currentSectionTab === "transfers") {
+			chatContainer.classList.add("hidden");
+		} else {
+			chatContainer.classList.remove("hidden");
+		}
 	}
 }
 
@@ -823,26 +875,25 @@ function renderChatHistory() {
 		chatMessages.innerHTML = "";
 		chatHistory.forEach((item) => {
 			const messageDiv = document.createElement("div");
-			messageDiv.className = `chat-message ${item.sender} mb-3`;
+			messageDiv.className = `flex w-full mb-1.5 ${item.sender === "sent" ? "justify-end" : "justify-start"}`;
 
-			const header = document.createElement("div");
-			header.className = "mb-1 text-xs text-zinc-500 font-medium";
-			header.textContent = item.sender === "sent" ? "You" : "Peer";
+			const bubble = document.createElement("div");
+			bubble.className = `max-w-[80%] px-3.5 py-2 shadow-sm chat-bubble-${item.sender}`;
 
 			const text = document.createElement("p");
-			text.className = "text-sm text-zinc-200 break-words leading-relaxed";
+			text.className = "text-sm break-words leading-relaxed whitespace-pre-wrap";
 			text.textContent = item.text;
 
 			const time = document.createElement("div");
-			time.className = "chat-message-time text-[10px] text-zinc-500 mt-1";
+			time.className = `text-[9px] mt-1 text-right ${item.sender === "sent" ? "text-indigo-200/80" : "text-zinc-500"}`;
 			time.textContent = new Date(item.timestamp).toLocaleTimeString([], {
 				hour: "2-digit",
 				minute: "2-digit",
 			});
 
-			messageDiv.appendChild(header);
-			messageDiv.appendChild(text);
-			messageDiv.appendChild(time);
+			bubble.appendChild(text);
+			bubble.appendChild(time);
+			messageDiv.appendChild(bubble);
 			chatMessages.appendChild(messageDiv);
 		});
 		chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -914,6 +965,124 @@ function handleChatMessage(message, timestamp) {
 }
 
 window.clearHistory = clearHistory;
+
+// ============================================================
+// Pull-to-Refresh (mobile only)
+// ============================================================
+function ensurePullIndicator() {
+	if (pullIndicatorEl) return pullIndicatorEl;
+	const el = document.createElement("div");
+	el.id = "pull-indicator";
+	el.className = "pull-indicator";
+	el.innerHTML = `
+		<div class="pull-indicator-arrow">
+			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7-7-7m7 7V4"/>
+			</svg>
+		</div>
+		<div class="pull-indicator-spinner"></div>
+		<span class="pull-indicator-text">Pull to refresh</span>
+	`;
+	document.body.appendChild(el);
+	pullIndicatorEl = el;
+	return el;
+}
+
+function setPullDistance(el, dist) {
+	if (!pullIndicatorEl) return;
+	el.style.transform = `translateY(${dist}px)`;
+	const ratio = Math.min(dist / PTR_THRESHOLD, 1);
+	pullIndicatorEl.classList.add("visible");
+	pullIndicatorEl.style.opacity = String(ratio);
+	const textEl = pullIndicatorEl.querySelector(".pull-indicator-text");
+	if (dist >= PTR_THRESHOLD) {
+		pullIndicatorEl.classList.add("ready");
+		if (textEl) textEl.textContent = "Release to refresh";
+	} else {
+		pullIndicatorEl.classList.remove("ready");
+		if (textEl) textEl.textContent = "Pull to refresh";
+	}
+}
+
+function resetPull(el) {
+	el.style.transition = "transform 0.3s ease";
+	el.style.transform = "translateY(0)";
+	if (pullIndicatorEl) {
+		pullIndicatorEl.classList.remove("visible", "ready");
+		pullIndicatorEl.style.opacity = "0";
+	}
+	setTimeout(() => {
+		el.style.transition = "";
+	}, 300);
+}
+
+function triggerPullRefresh(el) {
+	if (!pullIndicatorEl) return;
+	pullIndicatorEl.classList.add("refreshing");
+	pullIndicatorEl.classList.remove("ready");
+	pullIndicatorEl.style.opacity = "1";
+	const textEl = pullIndicatorEl.querySelector(".pull-indicator-text");
+	if (textEl) textEl.textContent = "Refreshing...";
+	el.style.transition = "transform 0.3s ease";
+	el.style.transform = `translateY(${PTR_MAX * 0.55}px)`;
+	// Give the spinner a moment to render, then reload
+	setTimeout(() => window.location.reload(), 650);
+}
+
+function attachPullToRefresh(el) {
+	if (!el || el.dataset.ptrAttached === "1") return;
+	el.dataset.ptrAttached = "1";
+
+	let startY = 0;
+	let pulling = false;
+	let dist = 0;
+	let refreshing = false;
+
+	el.addEventListener(
+		"touchstart",
+		(e) => {
+			if (refreshing) return;
+			if (el.scrollTop <= 0) {
+				startY = e.touches[0].clientY;
+				pulling = true;
+				dist = 0;
+			} else {
+				pulling = false;
+			}
+		},
+		{ passive: true },
+	);
+
+	el.addEventListener(
+		"touchmove",
+		(e) => {
+			if (!pulling || refreshing) return;
+			const dy = e.touches[0].clientY - startY;
+			// Only act when still at the very top and dragging downward
+			if (dy <= 0 || el.scrollTop > 0) {
+				if (dist > 0) resetPull(el);
+				pulling = false;
+				return;
+			}
+			dist = Math.min(dy * 0.5, PTR_MAX); // resistance
+			e.preventDefault(); // block native scroll while pulling
+			setPullDistance(el, dist);
+		},
+		{ passive: false },
+	);
+
+	el.addEventListener("touchend", () => {
+		if (!pulling) return;
+		pulling = false;
+		if (dist >= PTR_THRESHOLD && !refreshing) {
+			refreshing = true;
+			triggerPullRefresh(el);
+		} else {
+			resetPull(el);
+		}
+		dist = 0;
+	});
+}
 
 window.addEventListener("load", () => {
 	attachModeListeners();
